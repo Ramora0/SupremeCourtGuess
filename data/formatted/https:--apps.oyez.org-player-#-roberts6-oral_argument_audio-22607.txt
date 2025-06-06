@@ -1,0 +1,399 @@
+J. McIntyre Machinery, Ltd. v. Nicastro
+An accident severed four fingers off the right hand of Robert Nicastro who was operating a recycling machine used to cut metal. A British company manufactured the machine and sold it through its exclusive U.S. distributor. Nicastro sued J. McIntyre Machinery, Ltd., the British company, and its U.S. distributor, McIntyre Machinery America, Ltd., in New Jersey state court for product liability. The state supreme court reversed a trial court's dismissal, finding that the foreign company had sufficient contacts with the state.
+May a consumer sue a foreign manufacturer in state court over a product that the foreign company marketed and sold in the United States?
+Roberts: We will hear argument first this morning in Case 09-1343, J. McIntyre Machinery, Ltd. v. Nicastro. Mr. Fergenson.
+Fergenson: Mr. Chief Justice, and may it please the Court: Because J. McIntyre did not direct any activity at residents of New Jersey either itself or by directing its distributor MMA to do so and had no awareness or knowledge that the distributor took the action that it did toward New Jersey, New Jersey lacked adjudicative jurisdiction.
+Scalia: When you say "its distributor", was this distributor at all controlled by the defendant?
+Fergenson: No, Your Honor. It was not. And both under Ohio law, Wells v. Komatsu America, and under the Restatement -- Second -- Agency, section 1-1, the right to control is essential to ascribe actions to create an agency, and it's on a per-purpose basis.
+Scalia: It might be better to refer to it as the company that distributed its product, rather than calling it "its distributor".
+Fergenson: Very good, Your Honor.
+Scalia: It's loaded, it seems to me.
+Fergenson: Very good, Your Honor.
+Kagan: Mr. Fergenson, in your question presented to this Court, you asked whether there's personal jurisdiction -- and I'm quoting here -- "solely because the manufacturer targets the United States market for the sale of its product. " So I'm taking from that, that you acknowledge that this manufacturer, McIntyre, a British manufacturer, targeted the United States market for the sale of its product. That's correct, yes?
+Fergenson: Your Honor, that's what the New Jersey Supreme Court held, and that's how we fashioned the--
+Kagan: That's your question presented--
+Fergenson: --the test.
+Kagan: --Did this -- well, I'll just ask you, then: Did this manufacturer target the United States market? Did it want to sell its products in the United States?
+Fergenson: Yes, Your Honor.
+Kagan: Okay. So what does that mean, exactly, Mr. Fergenson? Because the United States is the United States. It's made up of 50 States. So I assume that what that means is the manufacturer wanted to sell its products in each of the 50 States. Is that right?
+Fergenson: No, Your Honor.
+Kagan: It only wanted to sell its product in a few States?
+Fergenson: No, Your Honor. It wanted to sell its product anywhere that the distributor could find. The distributor was the market manager.
+Kagan: Right, anywhere. So if the distributor came up with California, that was great. If the distributor came up with a customer in New Jersey, that was great. As many as possible, more the better, all over the United States. Is that right?
+Fergenson: As many as possible, wherever the distributor could find a customer, yes, Your Honor.
+Kagan: Exactly. So you targeted New Jersey no less than you targeted California or New York or Illinois or Massachusetts or anything else.
+Fergenson: Well--
+Kagan: You targeted the entire United States? Why shouldn't there be jurisdiction in each of the States you targeted?
+Fergenson: --Well, Your Honor, because, first, this Court's jurisprudence looks to a direct act from World-Wide Volkswagen and even before, as it brought forward Hanson. As this Court has applied World-Wide Volkswagen, Burger King, and Justice O'Connor's concurrence in Asahi and the other occurrence -- concurrence, Justice Brennan's concurrence in Asahi, look toward a specific State.
+Scalia: Mr. Fergenson, I suppose you could say the same thing about any United States manufacturer--
+Fergenson: Yes.
+Scalia: --who would desire to sell his product in any of the States that would buy it?
+Fergenson: Yes, Your Honor.
+Scalia: And to say that this foreign manufacturer is therefore suable in any State would mean that any American manufacturer is suable in any State?
+Fergenson: Yes, Your Honor.
+Scalia: None of our cases hold--
+Kagan: Well, suable in any State where the incident arises. This is not general jurisdiction. This is specific jurisdiction. So the question is, when you target the entire United States and each of the 50 States within that and an accident occurs within one of those States, are you subject to jurisdiction in that State for that accident, for a claim based on that accident? Not generally, but just for a claim based on that accident. Didn't even Justice O'Connor -- you referenced the Asahi opinions, but Justice O'Connor said as long as there's purposeful availment, there is specific jurisdiction, and there is purposeful availment when there's an active effort to target a market.
+Fergenson: Well, Your Honor, in Burger King, in Hanson, in World-Wide Volkswagen, the purposeful availment is defined as conducting activities within the forum State. The -- this Court, through those opinions, foreseeability, clear notice, reasonably anticipate -- all converge.
+Ginsburg: In all of those cases there was a forum in the United States where someone injured in the United States could sue. Your proposition is that a company can deliberately send its products, wants to explore the U.S. market. But I take it that there is no place in the United States, because New Jersey is no different than California or any other place -- is it your position that there is no forum in which McIntyre can be sued, even though it set up this distribution arrangement for the very purpose of having its machines in as many locations in the United States as it could? Is there a forum in the United States where it could be sued?
+Fergenson: Yes, Your Honor.
+Ginsburg: Which one?
+Fergenson: Ohio. It could have been proceeded against in Ohio.
+Ginsburg: It could be reached in Ohio. Now, does that make a whole lot of sense? Is it any more convenient for McIntyre to come to Ohio than New Jersey? It's a lot less convenient for Mr. Nicastro, who had his fingers removed by this machine. But you are conceding that there is a forum where this British company can be sued on a tort that occurred in New Jersey. Explain to me why, since there is a forum in the United States, the logical one isn't New Jersey rather than Ohio.
+Fergenson: Well, Your Honor, first, the issue of convenience, choice of law, conflict of law, as a determinative factor was rejected by this Court.
+Ginsburg: I'm asking you the question: Where can it be sued? Well, something happened in New Jersey. The machine, allegedly defective machine, caused a harm there. What happened in Ohio? What basis for specific jurisdiction is there in Ohio? There was no tort in Ohio.
+Fergenson: Well, Your Honor, under Ohio law, there can be an assignment. There was no written contract between MMA and J. McIntyre. There can be an assignment in return for a release of a common law indemnification right.
+Ginsburg: I don't understand.
+Kagan: Mr. Fergenson, just picking up where Justice Ginsburg left off, Ohio is a perfectly good place for jurisdiction over a claim between the British manufacturer and its distributor in Ohio. Any kind of contract claim, a claim based on the agreement between the two, Ohio is the appropriate place for jurisdiction. But Ohio does not seem the appropriate place for jurisdiction -- and again, we're talking about specific jurisdiction, not general -- as to a claim based on an accident that occurred in New Jersey. The entire idea of specific jurisdiction is that you need a relationship between the defendant and the forum and the claim, and here the claim arose in New Jersey and was in fact not related to Ohio.
+Fergenson: Well, Your Honor, Ohio explicitly provides, and they are -- it's arisen in statute of limitation cases, and it goes back to Travelers Indemnity v. Trowbridge, that an action under both express and common law indemnity arises under contract. So upon the assignment, and there need not be a judgment under Ohio law -- that's Fort Defiance Construction v. Village of Grover Hill -- there can be an assignment of a common law indemnity under strict product liability.
+Ginsburg: What kind of common law indemnity are we dealing with here? Where does Mr. Nicastro sue? He hasn't got any assignment, any indemnity. Mr. Nicastro is injured in the United States by a machine manufactured in England and he wants to sue, understandably, in the United States. Why are we talking about assignments, indemnity? That has nothing to do with Mr. Nicastro.
+Fergenson: Yes, Your Honor, it does. Mr. Nicastro had an action under strict product liability. I want to come back to more fully answer the why question that you asked: Why is it just and right that he go to Ohio?
+Ginsburg: No, I would just like to know first -- you said there is jurisdiction in Ohio and not in New Jersey. In New Jersey, it's the place where the accident occurred, and in Ohio there's nothing but the relationship between the distributor -- there's a contract between the distributor and McIntyre. So why does Ohio have jurisdiction over this New Jersey tort?
+Fergenson: Ohio has New Jersey -- jurisdiction. As Your Honor noticed, there are three places that Mr. Nicastro, in looking over this, could have chosen: United Kingdom, which he is now in, in filing a claim in the liquidation proceedings; Ohio; and New Jersey. The accident occurred in New Jersey. That's a forum non conveniens issue that's--
+Ginsburg: It's a forum what?
+Fergenson: --That's a convenience issue, a forum non conveniens. And justice Brennan was clear before Burger King that that's what he wanted to see the law go in the direction of. He was clear about that. Ohio, however, in looking at International Shoe, going back to International Shoe, which talks about the relationship between the defendant and the forum State--
+Ginsburg: And the claim in suit. That's very important.
+Fergenson: --And the cause of action, yes. There -- the one place where both the distributor, who would upon suit and then a claim over under product, strict product liability would disappear -- that's why you can get an assignmenthe distributor is in Ohio, and so too is the contract relationship.
+Ginsburg: I still don't follow how Mr. Nicastro gets involved with assignment, indemnity. Mr. Nicastro has a claim against -- well, he sued them both, but the distributor is now bankrupt. And he says, well, this is specific jurisdiction; specific jurisdiction, as International Shoe teaches, is where the claim arose. International Shoe, it arose in the State of Washington because that's where the shoe -- the people who were promoting sale of International Shoe's -- International Shoe's shoes worked every day. So it was a claim relating to a tax owed by International Shoe based on the events that occurred in California. It was not all-purpose jurisdiction. And your suggestion that Ohio somehow is a proper forum for Mr. Nicastro's tort claim, I really don't follow that.
+Fergenson: It -- Your Honor, it is. Mr. Nicastro could have contacted MMA and stated: I have a strict product liability action -- or the trustee in bankruptcy. The statute of limitations was 2 years in both cases. Ohio would have applied New Jersey strict liability law.
+Kennedy: Your answer to Justice Ginsburg -- I don't want to make your argument for you, but it seems to me all of a sudden you're talking about how Ohio law will help you out. I thought the question was, from the standpoint of the defendant at least, whether the defendant purposely availed itself of the forum and you would say the defendant here purposely availed itself of Ohio by choosing an Ohio distributor. But you don't make that argument. You're talking about a contract, an indemnity, which seems to me another step. That's a choice of law and applicable law.
+Fergenson: I agree, Your Honor; it is choice of law.
+Scalia: --Also, I don't think it's worth your time, because frankly it doesn't make a whole lot of difference to me whether they can sue in Ohio or not. You really think that that's--
+Fergenson: And, Your Honor--
+Scalia: --What about in the United States? Would the United States have jurisdiction?
+Fergenson: --No, because--
+Scalia: The United States would not? They surely targeted the United States.
+Fergenson: --Well, Your Honor, in the -- in Justice O'Connor's footnote on national contacts in Asahi, which was not disputed and I think essentially accepted by Justice Brennan, in that footnote it states that national contacts is for the national sovereign to decide.
+Scalia: That's right. But if the national sovereign, the United States, provided by statute that Federal district courts would have jurisdiction over any, any tort suit by a person injured by a foreign manufacturer that targeted the United States, would that be proper?
+Fergenson: This Court has not evaluated under the Fifth Amendment what circumstances it may be, and this is speculation, how Congress would establish it. It may be that Congress--
+Scalia: Of course. It's a hypothetical.
+Fergenson: --Yes, sir. Yes, sir.
+Scalia: Hypotheticals are always speculation.
+Fergenson: I think that--
+Scalia: How do you speculate about that?
+Fergenson: --Your Honor, I think that, without Klaxon and with a reasonable choice of venue, Congress could establish a uniform system to bring foreign defendants into this country.
+Kennedy: Would you say the same thing if, hypothetically, since we're engaging in a hypothetical, the distributor were in France, machine manufactured in England, distributor is in France, and the distributor then selects the United States and then the same facts, New Jersey? United States would be an appropriate jurisdiction under the Due Process Clause, but not New Jersey?
+Fergenson: I think that, with that one step--
+Kennedy: Assuming the statute that Justice Scalia hypothesizes.
+Fergenson: --Yes, Your Honor. I think that, with that one step beyond--
+Kennedy: It's a little odd that the States, which have residual sovereignty, which are not limited sovereigns, would not have jurisdiction, but the United States, which is a limited sovereignty other than in the foreign affairs area, which may be relevant here, does have jurisdiction. That seems backwards.
+Fergenson: --Well, Your Honor, I think that if one looks at this as part of the Congress's power to control, let's say, imports, then as a condition -- and this is what the proposed Foreign Manufacturer's Legal Accountability Act--
+Scalia: Well, Congress has power to control the jurisdiction of Federal courts, and Congress says Federal courts have jurisdiction over this matter.
+Fergenson: --Yes, Your Honor.
+Kagan: Mr. Fergenson, could I try another hypothetical?
+Kennedy: But the question is why the State can't make the same choice that the Congress does. The State lacks foreign affairs power, to be sure. Is that the only distinction? That doesn't sound to me like due process. What we're talking about is a source of authority, not fairness to the defendant.
+Fergenson: Well, Your Honor, I think -- and I go to two words in particular in Burger King, one taken from Hanson, which is essential -- it is essential in each case that there be a purposeful availment of the privilege of conducting activities within the forum; and then the other--
+Kagan: But, Mr. Fergenson, the question is whether seeking to serve a market -- and here you're seeking to serve a market in each of the 50 States -- is purposeful availment. So let me just try a different hypothetical. Suppose you had the same arrangement with your distributor in Ohio, but the arrangement was not to serve the entire United States market. Instead, the arrangement was to serve only five States in the Midwest. That's what you wanted, your client wanted, the market to be. So it was going to be Ohio and Indiana and Illinois and Michigan and Iowa, all right? So now a machine blows up in Illinois. Is there jurisdiction in Illinois?
+Fergenson: --Yes, Your Honor.
+Kagan: There is jurisdiction in Illinois, even though your relationship with your distributor was in Ohio. But there's jurisdiction in Illinois because the machine blew up there and you were seeking to serve the market; that's right?
+Fergenson: Because there was a direction of the distributor to go into the State where the accident occurred.
+Kagan: Okay. Now we have -- now we say this is working very well. Let's get another nine distributors on board. We'll give each of them five states, all right? Now, if I understand you correctly, now you're liable all over the United States because you've had this relationship with ten different distributors, each of whom are going to serve five states. So there's personal jurisdiction in any state where a machine blows up.
+Fergenson: If the -- yes, Your Honor, if the states are assigned by name.
+Kagan: And now I say: Let's forget these ten distributors. Who needs ten distributors? I'll just have one distributor. Why is there any difference?
+Fergenson: Because that distributor -- unless that distributor is told, you must go, like a traveling salesperson, you must go into each State, you must personally go into each State -- that's purposeful availment.
+Kagan: Mr. Fergenson, with respect, this distributor was told to sell as many products as it could in as many States as it could.
+Fergenson: No, it was not, Your Honor. It was not told to do anything more than to sell products, not in as many--
+Sotomayor: Excuse me, counselor. Going back to the relationship, Justice Scalia asked you whether there was legal control, and you said no. But there was coordination, wasn't there? Isn't -- doesn't the record show that the English company traveled to the trade shows with the American company? Wasn't your president, your English president, present at the Las Vegas show in which this New Jersey company first saw the machine? Is that correct?
+Fergenson: --Yes.
+Sotomayor: I know there's a--
+Fergenson: Yes, Your Honor.
+Sotomayor: --And you approved all marketing efforts. You had to approve -- according to the findings of the court below, you approved all the marketing materials that the American company--
+Fergenson: No, Your Honor. There is a letter that's undated that speaks about we have advertised under your direction and per your suggestions. That letter also states that: We've spent $350,000 and we performed the -- we performed repairs and warranty service without seeking reimbursement from you, and that's consistent with the distant relationship here. Your Honor, we asked for the names of the customers. We didn't get it. We didn't get -- we didn't drop-ship. And that would obviously have been a lot less expensive in cost rather than shipping it to Ohio. They were the market maker. They controlled the relationships with the individual customers.
+Sotomayor: --Then why was your number and name both printed on the machine and in the warranty book? The American -- obviously, some customers had to be reaching out you to because all the materials they received directed them to the English company, not to the American company.
+Fergenson: And, Your Honor, the record shows that we were sued in Kentucky, we were sued in Massachusetts. The Kentucky dispute was settled, was resolved by dismissal under the statute of limitations, but--
+Sotomayor: I think you've begged my question.
+Fergenson: --I'm sorry, Your Honor.
+Sotomayor: You did travel to certain of the trade shows--
+Fergenson: Yes, Your Honor.
+Sotomayor: --with the America company?
+Fergenson: Yes, Your Honor.
+Sotomayor: You did make suggestions with respect to advertising? At least with -- at least once, but you did?
+Fergenson: The company that distributed the products stated in a letter that we conformed our advertising to what you suggested.
+Sotomayor: Okay. And you don't believe that coordinating your actions with the distributor and appointing that distributor to distribute products wherever it can is not enough for you to reasonably believe -- know that you're going to be dragged into a State where that product has been sold--
+Fergenson: That's correct, Your Honor.
+Sotomayor: --and has caused injury?
+Fergenson: That's correct, Your Honor. And I would ask Your Honor to look at Professor Kurland's University of Chicago Law Review article in 1958, very influential, and to look at footnote 99, in which Professor Kurland quotes, all quotes, from this Court's transcript of record in International Shoe. And in the International Shoe the salespeople were controlled by International Shoe.
+Breyer: Right. Can I ask you--
+Fergenson: Yes, Your Honor.
+Breyer: --Now, first, the word "distributor" hurts, so I'm going to take that out, and I imagine a hypothetical -- I know your case differs from that, but I'm going to ask them how it differs, not you, okay? Now, a person walks into a shop in either West Virginia or the country of India where they make pots. They're very nice pots made actually in West Virginia. And the potter makes several thousand a year, and this individual says: Mr. Potter, I want to sell your pots; send me a thousand each year. Where are you going to sell them? Everywhere. Great. Okay? That's it. Now, suppose that the law were, as it could be perhaps, that it is sufficient for jurisdiction throughout the United States that the distributor or independent buyer said: Good, I'm selling them everywhere I can and two or three end up in New Mexico, but it doesn't matter where they end up. Suppose that was sufficient to find jurisdiction. You've prepared for this case. I want to know in your opinion, if that were the rule, that's all that's necessary, what cases in this Court in your opinion would that conflict with? I mean, I'm thinking of the facts. I'm not thinking of statements of law or whatever, but you can bring those in, too. I want to write those down because I want to read those cases and you know them better than me.
+Fergenson: Your Honor, I believe that the principles of law as stated, because they're law and they're applied in each case, it could -- which you apply to the facts, I believe that the rejection of the convenience test by this Court in World-Wide Volkswagen, Savchuk, and in Shaffer, where Justice Brennan posited that there be a convenience test, that those--
+Breyer: I don't know what a convenience test is. Assume I'm very ignorant, which isn't too far from the truth. I would like you to tell me, are there any cases which we would actually be conflicting with were we to say all that's necessary to assert jurisdiction in every State is that a buyer walks into a shop where the manufacturer of pots makes pots and tells the potter, I'm going to sell everywhere I can, and the potter says good, okay. Now -- and he buys the pots. Now, if that were the rule, can you find a case that that actually conflicts with?
+Fergenson: --I believe that that conflicts, Your Honor, with Asahi.
+Breyer: Asahi, okay.
+Ginsburg: Asahi, Mr. Fergenson, was a litigation between a Japanese component part manufacturer and a Taiwanese finished product manufacturer. What -- how in the world could you compare that case, which really has nothing at all to do with the United States? It's -- it's a Japanese valve manufacturer sells the valve to a tire maker in Taiwan, and there should be -- that suit should go forward in the United States? I can see it going forward in Japan, but it has no connection with the United States. And how can you possibly compare that with this case where somebody was injured by a machine that malfunctions, allegedly? There was something very interesting you said in your brief. And you said the U.K., which you say -- now you added Ohio, but you said U.K. would be the place for Mr. Nicastro to go. It provides a trusted legal system. What would be your answer if the manufacturer, same arrangement with a distributor, sell anyplace in the United States you can, is from China? Would you give the same answer?
+Fergenson: Your Honor, I would have to look at -- and the answer would not be, off the cuff, the same. It would not be flatly the same. There's been a recent decision by Judge Chasanow on melamine in which Chasanow applied the availability law that this Court has set forth in Piper and Gulf Oil and the other cases that follow, and determined that China was an available forum for the plaintiffs suing for the harm to their children from tainted milk.
+Ginsburg: You made a point about the trusted legal system. Well, let's say it was Russia, Mexico. You make -- pick any one. The machine is manufactured in one of those countries where it's not so certain that there's a trusted legal system.
+Fergenson: That's correct, Your Honor. And so under Piper, Gulf Oil, and I can't remember the name of the other case that Judge Chasanow relied upon, they are difficult cases, and the ability of the Court to determine whether the other forum is available is quite cabined. And they are difficult, Your Honor.
+Ginsburg: Those that--
+Roberts: Perhaps you would like to reserve some of your time for rebuttal, counsel?
+Fergenson: Yes, Your Honor. Thank you.
+Roberts: Thank you. Mr. Ross?
+Ross: Mr. Chief Justice, and may it please the Court: "All we wish to do is sell our products in the States and get paid. " That's what the British manufacturer said.
+Roberts: What if he said: We want to do that, but we don't like New Jersey, so don't sell our products in New Jersey, and the Ohio company nonetheless does so? Could you get them -- can you hail them into court in New Jersey?
+Ross: I would say under those circumstances, yes, because the purpose thathis particular manufacturer purposefully availed themselves of the entire U.S. market.
+Roberts: But he said: But I have no intention of selling in New Jersey, I'm afraid I might get sued there and I don't want to get sued there. He is not entering the stream of commerce in the United States. He's entering a stream of commerce that detours around New Jersey.
+Ross: So every State with the exception of New Jersey, is that the hypothetical, Your Honor?
+Roberts: Yes.
+Ross: Then I would say under those circumstances, yes, New Jersey would be excluded.
+Roberts: Oh, it would be excluded?
+Ross: Yes. If the manufacturer--
+Roberts: So it depends on the intent of the manufacturer?
+Ross: --I think it's the intent and the additional conduct of the manufacturer, Your Honor. I think, as Justice O'Connor said in the Asahi case, she gave several examples. I think we'd meet all the examples under the circumstances of this case.
+Scalia: What if a manufacturer tells a distributor, you have international distribution authority, you can sell my machine anywhere in the world, sell as many as you can anywhere in the world; that would include the United States, right?
+Ross: That is correct, Your Honor.
+Scalia: And therefore it would include New Jersey?
+Ross: Under those circumstances, of course, which are different from our case, it would seem to me--
+Scalia: I know; it's a hypothetical.
+Ross: --Of course, of course. But the fact of the matter is if the manufacturer purposefully availed itself of the market which would include the world and had a distributor for the entire world and did--
+Scalia: It would include New Jersey.
+Ross: --Yes, it would.
+Scalia: Purposeful availment of the government of New Jersey?
+Ross: I would say the manufacturer has to take some additional conduct.
+Scalia: I mean, availment doesn't mean much if that's all it means.
+Ross: Well, if--
+Scalia: You tell somebody distribute in the world and you are availing yourself of the government of New Jersey?
+Ross: --If there is purposeful availment and additional conduct, Your Honor. In this case that's what we have here.
+Breyer: Additional conduct?
+Ross: Correct.
+Breyer: What I have written down in my notes, which you can add to--
+Ross: Sure.
+Breyer: --is that there are three things that happened. One -- it's the equivalent of the potter. One thing that happened, we have to take it as, I think, an independent company, whether you want to call them a distributor or not. I didn't see a difference there. An independent company goes to a firm somewhere in the world and says: I will buy your product and sell it in the United States. And the guy says good. And that's true whether it's a woman's cooperative in southern India or whether it's the biggest company in the world, okay? That's the first thing. The second thing is that an executive of that company went to seven trade shows in the United States. And the third thing is that two, three, or four machines ended up in New Jersey. Now, is there anything other than that? And there's a lot of rhetoric, and there are all kinds of characterizations, but when I look for facts, I found those three, and I want to be sure I have them all.
+Ross: You do, Your Honor.
+Breyer: I do. Now, then my question following from that, if I have those are the three facts, what worries me is the exact opposite of what the New Jersey Supreme Court said. It said in worldwide markets this is a good thing. I think I worry about it, because I'm worried about the woman's cooperative in India, I'm worried about the Chinese development, I'm worried about development everywhere. We have a lot of small businesses. And I would worry -- now, maybe the worry is legally irrelevant -- but I'd worry about a rule of law that subjects every small business in every developing company -- in every developing country to have to be aware of the law in 50 States simply because they agreed to sell to an independent company who is going to sell to America, plus your two factors. And really the third is none, because if it hadn't ended up somewhere, there would have been no accident.
+Ross: I would say--
+Breyer: Now, that's my basic concern here.
+Ross: --I would say in response to your hypothetical question, that because there was purposeful availment where they came to the United States, attended trade shows in an effort to sell their product to anyone who would come to that trade show throughout the United States, and those sales were in fact consummated, then in that case I think that the manufacturer has done more than just intend to sell. They have taken certain positive steps.
+Breyer: Yes. Okay, but you see what my problem is a sort of policy problem that may be irrelevant; but I don't see how the world's going to work or develop if in fact every small business everywhere in the world has to know, you know, the law of every 50 States and hire lawyers and come here, rather than making the accident victim go there. Now, it's tough on the accident victim, but the other is also tough. So that's -- that's sort of the -- I'm sketching out my concerns here.
+Ross: I understand.
+Breyer: All right.
+Sotomayor: What is--
+Roberts: Maybe you could respond to Justice Breyer's--
+Breyer: Yes.
+Ross: In my judgment, it's not enough to just have intent, it's not enough just to send the product out on, adrift on the stream of commerce. There have to be some additional conduct, some concrete steps taken. And I believe--
+Breyer: Trade shows.
+Ross: --in your hypothetical, attending the trade shows, perhaps hiring a distributor, selling the products--
+Breyer: Well, that's the same as the first; that's the sale.
+Ross: --That's right. So I think those are the additional concrete steps that were taken in your hypothetical.
+Kagan: Mr. Ross, do you think if there's a small business in the United States that sells a product and that actively seeks to serve a foreign market, maybe it's Great Britain, maybe it's China, and that product blows up in that foreign country -- Great Britain, China -- do you think that the manufacturer, the American manufacturer is subject to jurisdiction there?
+Ross: Yes. If they actively seek the market there, they have purposely availed themselves, they have taken--
+Kagan: All over the world this is true; is that right?
+Ross: --Yes. Yes, Your Honor.
+Ginsburg: And it is the jurisdictional rule that civil law systems have always had?
+Ross: That's correct, Your Honor. I believe--
+Scalia: But -- and I assume that if we do this to a company in England, any country in the world, and we say that this satisfies due process, we would have to honor a judgment from Bangladesh based upon -- against an American company, based upon a similarly modest degree of availment, right?
+Ross: --Well, Your Honor, it depends on the extent of the availment, I would say, under those circumstances.
+Scalia: Just as modest as what you propose here, or as extensive. I don't mean to demean the degree of it here.
+Ross: It seems to me -- if there's--
+Scalia: But the same kind of contact in India, which has different states in India. And -- strike Bangladesh. Make it Madras, okay?
+Ross: --All right.
+Scalia: And we would have to honor a judgment by a court of Madras against an American manufacturer who had as little contact with Madras as exists here.
+Ross: I would say under -- yes.
+Scalia: We would have to?
+Ross: Yes, I would say.
+Kagan: Mr. Ross, we do that now; isn't that right?
+Ross: That's correct, Your Honor.
+Breyer: We do? So if someone goes into a shop in West Virginia and buys 1,000 pots and says I'm going to sell them in Madras, or I might sell them anywhere in the world--
+Ross: That's a slightly--
+Breyer: --and then that manufacturer, that potter in West Virginia, now has to go to wherever he ends up -- wherever that pot ends up?
+Ross: --That's a slightly different scenario in my judgment, Your Honor.
+Breyer: Ah.
+Ross: --because the distributor came to the manufacturer. In this case, the manufacturer from Britain hired--
+Breyer: We turn it on that? We turn it on whether the independent buyer -- the independent buyer walked into the shop or whether the seller found that there was an independent buyer, is that what this case should turn on? I mean, I'm nervous. I see a lot of rather deep issues here, and I -- that's what are making me nervous.
+Ross: --I understand that.
+Breyer: I want to -- you've thought about it more than I. So--
+Ross: I understand that.
+Ginsburg: Can we go back to Justice Scalia's question? I mean, the United States has been telling the rest of the world: We do recognize and enforce your judgments--
+Ross: I think--
+Ginsburg: --if there is a proper jurisdictional basis.
+Ross: --That's correct, Your Honor.
+Ginsburg: We do, and we would like you to recognize ours, and we don't get that reciprocity, but we are still trying to get it. But the United States has taken a very neighborly view about recognizing and enforcing foreign judgments.
+Ross: Yes, Your Honor.
+Scalia: That's true when there is a proper jurisdictional basis, which is what we're talking about here: What does the United States mean when it says there is a proper jurisdictional basis? Is all that the court in Madras needs what existed here in order to hold an American manufacturer liable? That's -- that's a little scary.
+Ross: Well, Your Honor, if the corporation, the manufacturer is purposely availing itself of the Madras market and hires a distributor to go to Madras and to sell its products, then indeed I don't see why a court in Madras would not have -- and the product explodes or causes some horrific--
+Sotomayor: --To it really, to you -- are you saying that Justice Breyer's hypothetical creates jurisdiction, that the mere sale to a distributor anywhere creates jurisdiction, wherever that distributor is marketing the manufacturer's product? I thought because in the hypothetical he created it was they were availing themselves of the U.S. market, that they were marketing, they went to seven trade shows. They did merely -- they did something more than the sale. So where's your -- what's your position?
+Ross: --My position is exactly what Your Honor has just stated. They have to do something more than just sell. There has to be purposeful availment. There has to be some concrete action, attending trade shows, designing the product for the market.
+Alito: What difference does attending some trade shows in the United States mean -- make? Suppose they're -- they didn't attend any trade shows, they just have a web site that provides a description of the product.
+Ross: I think--
+Alito: Would there be no jurisdiction then?
+Ross: --Well, it depends on the web site. But in my judgment, attending trade shows is a large factor that is unique in this case. As I pointed out in our briefs, they were -- they didn't just attend a trade show. They attended trade shows throughout the United States to sell this product.
+Alito: But not in New Jersey.
+Ross: Not in the State of New Jersey, but a lot of other places.
+Ginsburg: Where did the New Jersey company that bought this machine find out about it?
+Ross: Well, Mr. Curcio, who was Mr. Nicastro's employer, went to one of these convention trade shows in Las Vegas, where he saw the machine. And at that trade show the British manufacturer shared a booth with the -- its American distributor. And that's where Mr. Curcio, Mr. Nicastro's employer, saw the machine and that's why he decided to buy it there.
+Roberts: --What difference does it make that they go to a trade show somewhere other than New Jersey? We have the notion that they're availing themselves of the entire United States market. That's -- I'll accept that. What does the trade show in Nevada add to the jurisdictional ties to New Jersey?
+Ross: The difference for this case, precisely this case, is that we feel that under those circumstances there may have been minimum contacts, even under a traditional sense here.
+Roberts: With Nevada?
+Ross: No, with New Jersey, because the British manufacturer was there. He was in a booth. A New Jersey person came to the booth and said, That's a great machine. There was some kind of interaction. The record is unclear as to what it was, but the result was the British manufacturer wound up selling its product--
+Scalia: If you interact with somebody from New Jersey, you have committed availment of the government of New Jersey?
+Ross: --It's more than that.
+Scalia: There are a lot of people from New Jersey.
+Ross: It's more than -- it's more than that, Your Honor. It's more than that. It's the distributor acting under the direction, guidance, and control of the British manufacturer, and there are records in the record there's plenty of reference to that.
+Scalia: He didn't tell them to just seek out a person from New Jersey. He told them to talk to people.
+Ross: He was prepared to sell to anyone. Whether it was from New Jersey or Massachusetts or Connecticut, it didn't matter as long as the sale was into the United States and the manufacturer got the economic benefit of it.
+Kagan: And Mr. Ross, isn't the point that he was selling by using large convention sites in the United States, expecting that people from other -- would show up to those large convention sites? I know that Justice Alito doesn't want to hear this, but New Jersey doesn't have all that many large convention sites like Las Vegas does. Newark is not such a hot place, but they're expecting people from Newark to go and look at these machines and buy these machines. That's the marketing system that's used for these massive machines that they're trying to sell nationwide.
+Ross: That's exactly correct, Your Honor. The--
+Roberts: What if there is no scrap metal plant in Montana? Can Montana be a jurisdiction in a case like this? You know, a Montana worker is over in New Jersey and comes back to his home in Montana, and he's been injured. Do they avail themselves of the market in Montana when there's no market for their products there?
+Ross: --Well, if someone from Montana attends one of these trade shows and decides to purchase one of these machines--
+Roberts: No, no. He's just injured by one of these machines somewhere else, but he's from Montana. Can he sue in Montana?
+Ross: --Under those circumstances I would say not.
+Ginsburg: The basis would only be the plaintiff's residence?
+Ross: That's correct.
+Ginsburg: And we don't accept that as a sufficient basis.
+Ross: That's correct. That would not be enough.
+Roberts: Well, I thought this was what the case was all about: Whether this is -- the stream of commerce is sufficient to add a basis on top of the plaintiff's residence. And I would have thought to me, that's a significant limitation on your theory to say that in areas where you don't expect to be hailed into court because your machine is not going to be used, you can't be.
+Ross: Well, it seems to me that if the, if the manufacturer has purposefully availed itself of the entire United States market, which is inclusive of Montana--
+Roberts: Yeah.
+Ross: --and the machine somehow winds up in Montana.
+Roberts: No, no. Not the machine.
+Ross: The individual.
+Roberts: Yes.
+Ross: So the individual is in Montana; the accident happened somewhere else?
+Roberts: Yes.
+Ross: Under those circumstances, I would say that wherever that machine was sold into, whether it was in an adjoining State, and the fellow from Montana lived across the border, say--
+Roberts: Yes, exactly.
+Ross: --I would say that the jurisdiction would be better put where the accident occurred.
+Roberts: Could it be put elsewhere? Could it be put in the other State?
+Ross: I would say that if the manufacturer has not purposefully availed itself of the State of Montana--
+Roberts: Right.
+Ross: --and has taken no steps--
+Roberts: Right.
+Ross: --to push into Montana, even though it is seeking to sell to the entire United States--
+Roberts: Yes.
+Ross: --I think the better location for that--
+Roberts: Well, better -- I know you think it's better, but can he be sued in Montana? What I'm trying to get at, obviously, is we're talking about the stream of commerce in the United States, but the stream doesn't wash over the United States evenly. The manufacturer, as I asked earlier, may decide, I don't want to sell New Jersey.
+Ross: --Right.
+Roberts: The manufacturer may reasonably assume his machines aren't going to be in Montana because there is no scrap metal business in Montana. So I'm just trying to see if there are limitations to your theory about the stream of commerce covers everything.
+Ross: Yes, Your Honor. The answer is yes, there are limitations. There are those limitations, and I think the best way of stating it would be if there is purposeful availment of entering a market and you sell the product into that market, you take these additional steps plus the intent.
+Roberts: Right, but the market cannot be simply the United States, because you carve out New Jersey if the manufacturer does, you carve out Montana.
+Ross: That is correct.
+Roberts: Okay.
+Breyer: --But what I'm thinking is this area of law has treated States as if they're foreign countries, in a certain way analogous to. If that -- I'm trying to -- let me ask: What you said at one point, that if an independent company comes to a business, however small, in the United States and says, give us some of your product, we're going to sell it everywhere in the world we can, fine. And they do. A couple get into some very -- Burma or whatever, Myanmar. And right now, it's the law that consumers in all those countries sue in that country if they're hurt. Is that really the law? Is there something you can cite me to on that?
+Ross: Well, there are conventions. There's the Brussels convention and the Uganda--
+Breyer: What does it say?
+Ross: --They basically state, according to my understanding, that where the tort occurred to the signatories to that convention, which includes--
+Breyer: And we're one?
+Ross: --The United Kingdom; which Includes the United Kingdom.
+Breyer: And are we one?
+Ross: Thathen in those cases, where the tort occurred there would be jurisdiction over the foreign manufacturer. For example, if there's an injury in Belgium and the machine is manufactured in Britain and someone is hurt in Belgium, according to those conventions then the person in Belgium could sue the British company in Belgium.
+Breyer: Did you refer to that? Do you have the citation to that?
+Ross: They're in our brief.
+Breyer: They're in your brief?
+Ross: Yes, Your Honor.
+Ginsburg: Is -- this EEOC Convention on Jurisdiction and Judgments, does that operates only within the Community?
+Ross: That's correct. The United States is not a signatory to that convention. But the hypothetical was -- and I tried to answer the hypothetical.
+Kennedy: Does your argument depend on whether the manufacturer is the manufacturer of the whole machine as opposed to a component part, like Asahi? Suppose there was a little battery or lever that was manufactured, I don't know, in France, and it was sent over to this English manufacturer, and they were -- this part is incorporated in many different kinds of machines, but the part then -- and then the facts are the same: It goes to the Ohio distributor and New Jersey, but the part is what causes the injury. What result?
+Ross: I would say no jurisdiction for a component manufacturer under those circumstances, unless the component manufacturer was deliberately manufacturing a product for sale into a State in the United States.
+Kennedy: Well, it's like Justice Breyer's hypothetical. He wants to sell to the entire universe if he can.
+Ross: That's correct, but the manufacturer in your hypothetical did not purposely avail itself of the United States market. He simply sold a component part. This is, of course, not a component part case we have here before us. So he may have known, there might have been foreseeability that it was possible that. That's not enough.
+Roberts: What if -- let's say he does know, it's a component part for something that is sold, widely sold, in the United States. Or it's a component part of this machine.
+Ross: Our position is that under those circumstances, if the manufacturer did not purposely avail itself of the United States market by hiring a distributor--
+Roberts: Why would it be -- so you have an entirely different test?
+Ross: --That's the components -- I'm sorry.
+Roberts: You have an entirely different test for a component manufacturer than you do for the finished product manufacturer. The component manufacturer may well know to a certainty that his component is going to be used in a product that's sold in the United States. Let's say he makes a component for this machine.
+Ross: Right.
+Roberts: Why is that different? Shouldn't it be the same test?
+Ross: I think it's different. And that's where the limitation of the Due Process Clause, I think, comes into play because that manufacturer, making a small component, a spring, a small part for a large machine like in the Asahi case, he may have known. It's foreseeable that this product--
+Roberts: Let's say he makes the 25-inch blade that only goes into this machine. That's the only market for it. Does -- no difference?
+Ross: --I would say there is a difference, because that component--
+Roberts: I'm sorry. That was poorly phrased. Is it the same test for the machine or is it a different test? Is it your component test?
+Ross: --I think it's -- I think it's the same test, but it would come out differently for the component manufacturer. That's the way I'd like to--
+Kagan: And Mr. Fergenson, isn't that what Justice O'Connor said in Asahi, that the component manufacturer may have all the knowledge in the world -- for Justice Brennan, that was enough; for Justice O'Connor, it was not enough that knowledge was insufficient, that there had to be purposeful availment, that there had to be an active decision, a choice to seek the market. And I understand that, on your view, McIntyre made that choice.
+Ross: --Exactly.
+Roberts: How can there not -- how can there possibly not be purposeful availment if the manufacturer of the 25-inch blade knows it's only going to be used in McIntyre's machine and it knows that McIntyre is trying to sell its machine in the United States?
+Ross: Because the manufacturer of that blade did not specifically target the United States market.
+Roberts: He put it in a product that is only going to be -- that he knows is going to be sold in the United States.
+Ross: But it's not specifically designed for them. That machine is not specifically designed for the U.S. market.
+Roberts: You have a partnership. One of the partners makes the shell of the machine; the other partner makes the insides of the machine. Are they as individual companies, are they availing themselves in the United States market?
+Ross: Now, under those circumstances, I would think there would be a difference. I think there would be a difference because they are combined in joining to market into the United States. But if this is a manufacturer of blades in Birmingham, England, and the manufacturer of blades in Birmingham, England sends it to Nottingham, England, and then something happens in New Jersey and all the facts are the same, I would say Birmingham is off the hook.
+Scalia: Suppose the company in Nottingham only sells to the United States, that's the only place its machines are marketed?
+Ross: That would be different then. Then there is more than that. There--
+Scalia: Then the component manufacturer would be liable in New Jersey?
+Ross: --Because he is basically piggybacking on the actions of the manufacturer.
+Breyer: What about today, is there any difference between the trade show, and he did show up at seven trade shows, I mean the manufacturer here had a representative at several trade shows, you're right.
+Ross: Twenty-six.
+Breyer: Twenty -- no, well, the record said seven.
+Ross: There were 26 trade shows.
+Breyer: Is that in the record?
+Ross: Yes, it is. Joint Appendix 114 to 117.
+Breyer: Okay. All right. Is there a difference between that you think and -- I just read in the paper I think there are some Ethiopian or some foreign countries, very poor country, and they are selling goats, and they're sending some to the United States for some kind of festival purpose or something. Now, he said I have a site on the Internet. Now, all of these people, however small, I mean, many, many will have Internet sites, and some of them might have an Internet site that's accessed by American buyers, as this man did.
+Ross: Right.
+Breyer: All right. Is there any difference between that and your trade shows?
+Ross: And if the goat poisons someone in the United States and the person who raised the goat--
+Breyer: Yes.
+Ross: --purposely availed itself--
+Breyer: No, no, don't use the characterization. I mean, I'm -- I'm -- I'm trying to figure out does this count as purposely availed?
+Ross: --If they take steps, concrete steps, additional conduct, then yes. The answer is yes.
+Breyer: Okay. So the answer is going to be, in this case, if we say you win--
+Ross: Sadly even if--
+Breyer: --then everyone with a -- everyone with a Internet site who also sells to a buyer who says anywhere in the world, perhaps -- I don't know how far that reacheseems pretty filled with implications?
+Ross: --Yes, it does. The Internet -- we deliberately did not raise the Internet or any web sites in our briefs.
+Breyer: But it's the same you think? It's the same--
+Ross: I think if there is purposeful availment and if the Internet is being used to market specifically into the United States and the product causes harm to someone in the United States--
+Ginsburg: There are some cases, just beginning -- as a beginning stages, aren't there, involving sales through the Internet?
+Ross: --Yes. Yes, Your Honor. I believe that those cases say if there is an interactive web site; in other words, if the person is sitting in the United States and presses several buttons on his computer and interacts and make -- consummates the transaction, if you will, with the foreign manufacturer, then under those circumstances I believe the trend of the cases seems to be that there would be jurisdiction.
+Kennedy: But you were cut off before you finished your answer, I want to make sure I understood it. I make the inference that you would say that if there is an advertisement, not a sale, just an advertisement on the Internet, replacing the trade show, that that is a significant availment -- a purposeful availment, and there can be jurisdiction in New Jersey. Same factors here, somebody doesn't go to the U.S. trade shows but he does put it on the Internet, same result.
+Ross: That was one of the four examples that Justice O'Connor gave us in Asahi, advertising for--
+Kennedy: I want to know what your position is?
+Ross: --Yes. My position is yes, because they are attempting to sell into the United States with advertising. But the trend of the decisions has been that it has to be an interactive web site.
+Roberts: Maybe everybody knows this except me. Do you -- are web sites targeted to the United States? Don't you can -- let's say they put it on their web site in England. Can't you -- can't -- can't I access that from here?
+Ross: Yes, you can.
+Roberts: So they don't even have to send the web site to the United States? They just have to have a web site?
+Ross: If it's an interactive web site where you can sit in New Jersey, order a product, the product is then delivered by the foreign manufacturer into New Jersey and the product then chops off four fingers of someone's hand--
+Roberts: So it has to be interactive?
+Ross: --Yes, Your Honor.
+Roberts: If it's just -- what if it says, here, we're McIntyre on the web site name, we make these machines, give us a call at this number if you want to buy one?
+Ross: Not enough.
+Roberts: Not enough?
+Ross: That's like a billboard. That's not enough. That's just a pure advertising; not enough. But if the additional steps that I just mentioned are taken and the sale occurs--
+Roberts: And this distinction is somewhere in the Due Process Clause?
+Ross: --I believe that the Due Process Clause requires the additional conduct. The purposeful availment, which is what we have in your hypothetical and the actual transaction, the sale, then we have jurisdiction.
+Kennedy: But was the sale here negotiated in -- or part of the sale negotiated in Nevada or the person justhe New Jersey manufacturer just was interested in the machine and then later contacted the Ohio distributor?
+Ross: In this case, the manufacturer says they own the machines until they're paid for in full. The machine was not paid for in full.
+Kennedy: I'm -- I'm -- I'm trying to relate what happened here to the Internet hypothetical. I have the--
+Ross: Right.
+Kennedy: --Internet hypothetical where there's just an advertisement.
+Ross: Right.
+Kennedy: And at first I thought you were saying that's sufficient. Now you're say, no, because they have to be part of the contract. I'm trying to make the Internet equivalent to the trade show.
+Ross: If the Internet web site is interactive, so you can sit in New Jersey, order the product, complete the transaction, send money, and in response to the money coming, you get a product--
+Kennedy: Not just an advertisement?
+Ross: --Not just an advertisement.
+Kennedy: Even though that's the cause for the buyer's interest in it and he pursues his transaction after finding out all the information on the Internet from an Ohio distributor?
+Ross: It's not enough, in my judgment, if -- under the Internet example that you just gave. If there's an interactive web site where the person in New Jersey can press buttons on his computer and complete the transaction with the result that the product comes to New Jersey, under those circumstances, I would say there is--
+Roberts: Complete? It's got to complete the transaction?
+Ross: --That's correct.
+Roberts: What if it's -- you know, punch these numbers and we will send you an application for a machine, is that not enough, because he's got to complete the transaction?
+Ross: I would say under those circumstances, that that's part of what the manufacturer requires, but the end result is that the machine winds up in New Jersey through this contact between the person and the manufacturer, then I would say that would be enough for jurisdiction.
+Roberts: So that if they say, fill this out, and contact this person, McIntyre, whatever, in Ohio, that's where you can get one of our machines, that's enough?
+Ross: I would say in that case they have deliberately targeted the entire United States market, but they want you to go through their distributor, which they have hired--
+Roberts: Would their--
+Ross: --in Ohio, and he sends it, it's the same situation. Well, if there's no further questions, I would simply like to ask this Court to affirm the judgement of the Supreme Court of New Jersey in this case.
+Roberts: --Thank you, Mr. Ross.
+Ross: Thank you.
+Roberts: Mr. Fergensen, you have two minutes remaining.
+Fergenson: Thank you, Your Honor. Justice Breyer, I would -- in response to your concern, I would ask you to look at page 29 of the State's amicus brief. Ignorance of the fact that New Jersey is a State within our union or of the specifics of New Jersey products liability law should not allow Petitioner to avoid jurisdiction, its own lack of research, prior to embarking on a nationwide marketing campaign is no defense. I think that--
+Sotomayor: I think--
+Kagan: Mr. Fergenson, could I ask you a question?
+Sotomayor: --I'm sorry. Could you -- just one quick point of clarification.
+Fergenson: --Yes, Your Honor.
+Sotomayor: It's a point that your adversary raised in passing. I'm not quite sure, do you sell outright to the American company? Do you ship a product and they pay you, or they only pay you when they receive the money from their customer? There appears to be some suggestion of the latter.
+Fergenson: And the New Jersey Supreme Court said there was a suggestion that some trades could have been by consignment. I believe that that is outside of this -- taken out of this case by an admission in the brief -- at least for this sale -- in the brief in our position to defendant's motion to dismiss at 1920 filed October 11th, 2006, where they state, where respondent states it was sold by us to MMA, and it was sold by MMA to Curcio Scrap Metal. So, there is no consignment, there is no consignment under 9102 which Ohio has adopted.
+Sotomayor: It is a different question than I asked. There was no consignment on this machine?
+Fergenson: Yes.
+Sotomayor: But you're not claiming that there might not be on others?
+Fergenson: The evidence in the record under 9102 which Ohio has adopted, I think can only be reasonably viewed -- and this Court obviously treats it as de novo, on a jurisdictional review -- can only be viewed as not a consignment because MMA was in the business of selling the products to others. Let me say that for there was no interaction in the record with anyone from New Jersey by MMA or by J. McIntyre. It was the booth, and then there was an order. And if you look at the invoice, it says verbal order. There was an order by the son of the owner of Curcio metal works, and that's it. The order was fulfilled.
+Kagan: Mr. Fergenson, Toyota, Honda, Volkswagen -- pick your car company -- sells many millions of cars to the United States. They start flowing up here, they operate through independent distributors only. Can they be subject to jurisdiction in any of the States?
+Fergenson: I think that most sophisticated distribution networks -- and this one was not -- I -- the defense takes it as a -- takes on the issue of this as a scheme. Most sophisticated distribution networks, such as the manufacturers you're talking about, there is recourse to remedies throughout the United States, whether against the distributor or against the manufacturer.
+Roberts: Thank you, counsel. The case is submitted.
+Arthur F. Fergenson for the petitioner
+Alexander W. Ross Jr. for the respondent
+Petitioner / Appellant: J. McIntyre Machinery, Ltd.
+Respondent / Appelee: Robert Nicastro, et al.
+||
+Roberts voted for the petitioner
+Scalia voted for the petitioner
+Kennedy voted for the petitioner
+Thomas voted for the petitioner
+Ginsburg voted for the respondent
+Breyer voted for the petitioner
+Alito voted for the petitioner
+Sotomayor voted for the respondent
+Kagan voted for the respondent

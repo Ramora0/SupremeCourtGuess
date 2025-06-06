@@ -1,0 +1,288 @@
+Duncan v. Owens 
+Ramon Nelson was riding his bike when he suffered a lethal blow to the back of his head with a baseball bat. After two eyewitnesses identified Lawrence Owens from an array of photos and then a lineup, he was tried and convicted for Nelson’s death. Because Nelson was carrying cocaine and crack cocaine potentially for distribution, the judge at Owens’ bench trial ruled that Owens was probably also a drug dealer and was trying to “knock [Nelson] off.” Owens was found guilty of first-degree murder and sentenced to 25 years in prison.
+Owens filed a petition for a writ of habeas corpus on the grounds that his constitutional right to due process was violated during the trial. He argued that the eyewitness identification should have been inadmissible based on unreliability and that the judge impermissibly inferred a motive when a motive was not an element of the offense. The district court denied the writ of habeas corpus, and Owens appealed. The U.S. Court of Appeals for the Seventh Circuit reversed the denial and held that the trial judge’s inference about Owens’s motive violated his right to have his guilt adjudicated solely based on the evidence presented at trial.
+Can habeas relief be awarded in the absence of clearly established precedent that the inference of motive at trial violates the defendant’s right to due process?
+Roberts: We'll hear argument next in Case 14-1516, Duncan v. Owens. Ms. Shapiro.
+Shapiro: Mr. Chief Justice, and may it please the Court: The Seventh Circuit in this case violated AEDPA when it granted habeas relief to Respondent in the absence of precedent from this Court, clearly establishing that Respondent's allegations rise to the level of a constitutional violation.
+Sotomayor: Let's assume the judge said, instead of what he said -- so make the assumption my way -- I don't know if the witnesses are telling the truth or not, but I believe he's guilty. I'm not sure about their credibility, but I believe he's guilty because he wanted to get rid of this guy because of a drug deal gone bad. Would that violate due process?
+Shapiro: It would violate due process if the judge did not find the element, the -- that the evidence provided by the State proved the elements beyond a reasonable doubt. But it wouldoes not violate due process, or at least it does not clearly establish that it would violate due process, for the finder of fact to speculate about a nonelement of the crime where it is -- where the finder of fact does not disavow or otherwise --
+Sotomayor: Well, this isn't speculation. The judge said who -- Larry Owens knew he was a drug dealer; Larry Owens wanted to knock him off; I think the State's evidence has proved that fact; finding of guilty of murder. Proved that Larry Owens wanted to knock him off?
+Shapiro: The State's evidence did establish that Larry Owens wanted to knock him off, because the State's evidence established that Larry Owens approached him and hit him over the head with a baseball bat several times.
+Kagan: Sorry, Ms. Shapiro. Could I take you back, because I just didn't understand I'm sure it was me -- the answer that you gave to Justice Sotomayor's first question. And I think it's important, because it focuses on what the actual issue is here: How much is at issue between the parties? If you had a judge that said, I don't think the evidence is up to snuff here, and then said, the thing that takes me over the line is what I think about the defendant's motive, and that's what allows me to say that the defendant is guilty, and that had not been proved, that had -- the State had never offered that into evidence. It really just came out of the judge's head for whatever reason. Right? Do you think that that would be a due process violation?
+Shapiro: Well, I think it would first depend somewhat on if -- on habeas review on how the State appellate court or supreme court interpreted the record and interpreted what the judge had said. If the State appellate court interpreted what the judge had said so that the judge was saying he did not believe that the evidence produced by the State proved the elements beyond a reasonable doubt, that would be a Winship error or a Jackson error, which is not Respondent's claim here. If the State appellate court read the record, interpreted the -- what the trial court said differently and thought that the trial court did think that the evidence was sufficient but was tying it together by trying to tell a story that made sense to himself, then it would not violate --
+Kagan: Yes. Okay. But then -- so the first alternative that you gave, and you said it's not the claim here, but I would have thought it was the claim here because you -- there is obviously a dispute about how to read these words. And we can talk about the -- how to read these words. Right? But once you say, as I think you said, and I think you properly said, Look, if what the judge's various comments on motive was basically taking him over the line, was -- that that was the basis for the verdict of guilty, that he didn't think that all the evidence, the other evidence was enough and that that was crucial to his finding, then, if I understand you right, you would say that's a due process violation because at that point the verdict of guilty is based on evidence that was never presented.
+Shapiro: If the judge found that the elements had not been proven beyond a reasonable doubt.
+Kagan: Well, the judge is just saying it's not -- you know, this is not enough, and it's necessary for me to think about motive as the missing piece.
+Shapiro: That does not necessarily violate due process because -- or it's -- it's certainly not clearly established that that would necessarily violate due process. Factfinders are free to develop a theory of the case that is not presented by the State as long as it is consistent with the evidence and as long as the evidence itself is sufficient to establish guilt beyond a reasonable doubt.
+Kagan: Oh, I see. So you think that it doesn't matter if the judge thought that the evidence was insufficient as long as the evidence was, in fact, sufficient.
+Shapiro: If the judge said that he found the evidence insufficient, that would --
+Kagan: Yes. The judge says, you know, all of this evidence, it's not enough. For me, motive is critical to a finding of guilt here.
+Shapiro: Again, it would depend on how the State court, State appellate courts interpreted the record. I think that is ambiguous, as you've described it, whether the judge is saying that he finds that the elements have not been proven beyond a reasonable doubt or if the judge is saying that he needs to find some way of telling a story about this case that makes sense to him. The first would be a due process violation. The second, it's not clearly established.
+Kagan: Okay. I mean, so maybe I'm putting words in your mouth, and so tell me if I am. But what I just heard was, look, if he's just telling a story to himself and he basically believes that the evidence that was presented is enough, but he wants to tell a story about some other things that make this all make sense, that's one thing. But if he's really filling in the pieces and deciding -- and determining guilt based on something that was never in the record, that's another thing entirely, and that that would run into all our statements about one accused of a crime is entitled to have his guilt determined solely on the basis of evidence at -- introduced at trial and so forth.
+Shapiro: It -- yes, I -- but it has to be quite clear that that's what's happening, both because we have a presumption that judges know and follow the law and especially on habeas review that presumption applies with special force. Because on habeas review, we assume not only that the original trial judge knows and follows the law but that the State courts that are reviewing his decision know and follow the law.
+Kagan: Okay. So now I'm going to go back to Justice Sotomayor's second question. And -- but, I mean, just take a look at what he said here. All right? His first sentence is, all of the witnesses skirted the real issue. All right? So all of the witnesses -- there's something wrong with what we've heard from all of the witnesses. They all skirted the real issue. Okay. So what was the real issue? What was the real issue? And then he says, the issue to me is that you have a drug dealer on a bike who Larry Owens, the defendant, knew was a drug dealer, and Owens wanted to knock him off. That's the real issue. And then he says, the State's evidence has proved that fact. What's that fact? Well, that fact is the same thing that he's just said is the real issue, that there was a drug dealer on the bike who knew -- and the defendant knew he was a drug dealer and wanted to knock him off. And then he says, okay. Finding of guilty. I mean, to me, I guess with all the deference in the world, it's just this judge saying, there's something wrong with all the evidence that's been given to me, and here's what's really moving me to find him guilty.
+Shapiro: So, first, if that were what the judge said, that interpretation, it's not clearly established that that would violate due process, for the reasons I've already said, that a finder of fact can develop a theory of the case to tie it together that is consistent with the evidence.
+Kagan: But that --
+Kennedy: But I thought it was clearly established -- I thought you agreed -- page 14, I think, of your reply brief -- that it is clearly established that it would be a violation of Taylor and Turner if the factfinder bases its verdict on evidence not in the record.
+Shapiro: On -- when we -- and when we discussed that in our reply brief, we talked about the possibility that a judge would say, I don'the evidence isn't sufficient so -- but I know that this defendant's brother committed a similar crime, and for that reason only I'm finding him guilty.
+Kennedy: Well, but to begin with, we have a general statement: The evidence must be based -- pardon me -- the verdict must be based on the evidence in the record. Correct?
+Shapiro: Correct.
+Kennedy: All right. And we agree with that.
+Shapiro: Yes.
+Kennedy: Then I don't see how -- I don't understand your answer to Justice Kagan.
+Shapiro: The precedent can be read -- that language can be read at a very high level of generality, which is not appropriate for AEDPA review. Under due process -- and it's especially important when we're talking about due process-claims that this Court respect AEDPA's requirement that the clearly established law have a certain level of specificity. Of course, it's clearly established that every defendant is entitled to a fair trial, but that alone does not mean that every allegation of a fair trial -- by -- of an unfair trial --
+Ginsburg: But here, the issue is, was the defendant convicted on the basis of information that wasn't in the record. And I think you would have to answer that if it's clearly established, that a conviction must be based on evidence presented at the trial --
+Shapiro: Certainly.
+Ginsburg: -- cannot be based on evidence that the judge heard at the local bar --
+Shapiro: Certainly.
+Ginsburg: -- for example.
+Shapiro: Yes. But in -- and in this case, it's important to note that the Illinois Appellate Court reviewed the record, and the Illinois Appellate Court concluded that in fact, the judge's speculation about motive was not a material factor in the verdict. And that conclusion is also entitled to deference by this Court, as --
+Sotomayor: I'm not sure -- you know, the problem is that you're making an allegation I'm not sure about. They had trouble with one of the witnesses. They wrote it. Correct?
+Shapiro: They said that they thought that Evans -- that there was -- Evans' testimony had its problems, yes.
+Sotomayor: All right. So that leaves it to a one-witness ID of a witness who, at best, saw the defendant once, when he turned around to leave the scene for a few seconds.
+Shapiro: From a distance of about 8 feet.
+Sotomayor: Right. I mean, once. Fleeting look. How can you draw a reasonable inference that the judge wasn't troubled by the witnesses when he says I think all of the witnesses skirted the real issue.
+Shapiro: Several answers to that question. First, Mr. Johnnie's testimony, which the appellate court discussed at some length and which the appellate court concluded was reliable, was essentially unimpeached. And both eyewitnesses were unrebutted. They both agreed and identified the defendant on several occasions as the person who --
+Sotomayor: Well, except that evidence failed to identify him in court.
+Shapiro: No. Evans did identify him in court. What Evans misidentified was the photograph he had selected from the photo array. But when asked to identify defendant in court, he did so, as the person who --
+Sotomayor: It's pretty easy to identify a defendant in court. They sit next to the defense attorney. I've always thought it's been a wonderfully -- a ritual with no meaning. But putting that aside, I guess my question is: You say that Johnnie's testimony was sufficient. I don't disagree with that. But what they didn't say was that it was credible, or that the judge found it credible. Those are two different findings.
+Shapiro: Certainly. The judge must have found it credible, because if he didn't believe Johnnie, we -- what you would have to presume is that this judge said, well, I don't think that the State witnesses have established the elements beyond a reasonable doubt. I don't think Johnnie is credible. So I'm going to disregard one of the most basic --
+Sotomayor: No. All the judge had to say was, I'm not sure he's credible. And what takes me over the line is this motivation, this theory that I have.
+Shapiro: It is not clearly established that that theory, in this situation would violate due process where it is consistent with the evidence, is not contradicted by the evidence, and where the elements are sufficient.
+Sotomayor: This is quite interesting. You can draw an inference about a defendant based on no evidence. No one said he was a drug dealer, I presume. Did he have any convictions for drug dealing?
+Shapiro: He did not.
+Sotomayor: He did not. So the judge could just make this up out of whole cloth.
+Shapiro: The --
+Sotomayor: And that's not extraneous evidence.
+Shapiro: It's not evidence at all. Fact finders are allowed to rely on their experience and common sense when they evaluate the evidence. For example, in Parker v. Matthews, the defendant had a partial defense of extreme -- that he was operating under extreme emotional disturbance. He had an expert who said he was operating under extreme emotional disturbance, but the jury rejected that defense. And this Court said that the jury was free to do so, in part based on their own personal experience and personal understanding of what emotional disturbance means. So jury -- so factfinders are free to consider what they know -- background information that they know about the world, and they bring that into the factfinding process.
+Sotomayor: That's a new theory. I didn't read that in your brief, that somehow, the judge was right. He can assume that Owens knew that the defendant was a drug dealer.
+Shapiro: No. We argued in our brief, that the judge is free, like any factfinder, to make inferences based on his common sense and experience. That's not the same thing as saying that the judge is free to ignore -- to convict in a situation where he finds that the elements have not been proven beyond a reasonable doubt. This Court could say that a situation like -- as -- that we're talking about violates due process, but not on a habeas -- not in a habeas case.
+Kagan: Well, I guess I -- this goes back to Justice Kennedy's question, I guess. We have these statements repeated over and over again. One accused of a crime is entitled to have his guilt or innocence determined solely on the basis of evidence introduced at trial. And what I hear you saying now -- and tell me if this is not what you're saying -- but what I hear you saying now is well, that's true as to real things that are extraneous to a proper factfinder's role, all right? But it's not true, as to -- I mean, I'm just going to say -- this made-up facts. It's not true as to made-up facts; that's different. You can make up facts, and made-up facts don't come within this rule. Is that what you're saying?
+Shapiro: I'm saying several things. First, it's not clearly established that a factfinder can't -- can't tie together the case to his satisfaction by review -- by coming up with a theory that's consistent with the evidence. But in addition --
+Kagan: It's not just -- it's -- it's not just like so I feel good about the case when I go home at night. I mean, this is a factfinder who has a very clear role, which is to adjudicate guilt or innocence. And motive, although not an element in Illinois, motive is relevant to identification, which, in this case, was all about identification. Everybody said that this case was about identification. So when the judge starts making up things about motive -- and I thought that the State really did not contest that this was all made up, that none of it was in the record that got -- you know, who knows how he got this. But he starts making up these things about motive, and then indicating that these things about motive are relevant to his adjudication. To me, I mean, clearly established or not, that just fits under this Taylor principle.
+Shapiro: The -- that interpretation of what the judge said and did was rejected by the Illinois Appellate Court.
+Kagan: I agree with you that there's a question of interpretation. So, I mean, it seems to me like everything comes down to that. Like, if you thought that this judge just made up facts and then said, this is critical to my finding of guilt, I mean, I just think you'd have to say that that's a due process violation under Taylor. That what you do have is you have the ability to come back and say, but that's not what the judge meant. That's not what the judge said, right?
+Shapiro: Correct.
+Kagan: Okay. So that narrows the issue. But then it's just like what was he saying, if that wasn't what he was saying?
+Shapiro: Well, there --
+Alito: Let me give you a hypothesis of what he may have been saying, because I think this may be a little bit too hard on the judge. This was an unusual prosecution. It was a murder prosecution where there was no evidence of motive. I think that's pretty rare. The judge may have been saying something like this: I have identification evidence here. And by the way, I read the wholeverything -- the whole record and -- that's in the appendix and the closing argument of defense counsel. There was no -- the defense here was not that these were witnesses who made an honest mistake. They just didn't get a good opportunity to see the -- to see the perpetrator. The -- argument of the defense, as I read it very clearly, was that something was going on here and these two witnesses were identifying -- were falsely -- knowingly identifying the wrong person. Something was going on. There's evidence that the victim was selling drugs, very strong evidence that the victim was selling drugs, and that's what was going on here. And so the judge said -- may have said to himself, why does the -- why would the accused take a baseball bat and beat this kid, this 17-year-old kid who has a lot of drugs in his pockets, riding around on a bike? Why would he just beat this kid to death? And there -- he -- I would be concerned about finding this -- the defendant guilty if I thought there was no motive in this case. But I can see that there could well be a motive in this case, because people in the drug trade kill each other. And that seems to be exactly what was going on here. Is that not a fair interpretation of what the judge was saying?
+Shapiro: I think that's an extremely fair interpretation of what the judge was saying. And I think it is consistent also with what the Illinois Appellate Court said when the Illinois Appellate Court said that the speculation about motive was not a material factor in the verdict.
+Breyer: Well, no. It actually said -- so I've been looking at this because it puzzles me what standard we're supposed to use. He does say there's no evidence that the two eyewitnesses knew each other, had any reason to conspire and fabricate their testimony. Next sentence: "Therefore, in light of these identifications, the trial court's speculation" -- this is page 128 -- "the trial court's speculation as to defendant's motive for assaulting Nelson will be construed as harmless error." Error. And the judge who's dissenting doesn't deny that it's error. He says it's error. He just doesn't think it's harmless. So now we have a case where it looks like the only words I can find on this in Illinois concede that it's error. Or they say it's error. Indeed, they say it's harmless error. Therefore, the issue is harmlessness. What am I supposed to do? What standard do I apply out of 2254 if in fact they think it's error? Or even if they didn't decide it and we -- it's debatable, obviously -- we think it's error; we don't have to give them any deference, I guess. How does it work?
+Shapiro: The -- this Court has to give deference to the Illinois Appellate Court's conclusion that defendant's due process rights were not violated.
+Kagan: But they didn't conclude that. I mean, Justice Breyer has asked -- you have to give deference, I would think, on the Brecht question, the question of harmlessness. But why would you have to give question on the merits -- on the merits issue? There was no merits determination. I mean, there are two ways to read this opinion, and neither one indicates that deference ought to be given on the merits. One way to read it is that they said it was error, but that it was harmless error. The other way to read it is that notwithstanding the fact that they said it was harmless error, they didn't really mean that. They didn't reach a decision as to the question of whether it was error. But even if that's the case, there's still nothing to give deference to on the merit side.
+Shapiro: I disagree. When the Illinois Appellate Court said the -- it said -- the language that Justice Breyer quoted, it was just after they are analyzing the State's argument. On page 119a, the appellate court explains that the State further argues that even if this Court determines that the trial judge's comments were improper, they should be deemed harmless since there's no indication that the comments constituted a material factor in defendant's conviction. They then go on to discuss the evidence and conclude that this speculation would be construed as harmless error. So what they are saying is error -- the best reading of this opinion -- they're saying is error was the speculation. It wasn't necessarily appropriate for the judge to be doing that. But they're not saying that there was constitutional error here. Indeed, it would not be coherent for them to say that it was not a material factor in the verdict and then not discuss whether that was constitutional error. The second, in terms of whether or not -- even if you believe that the Illinois Appellate Court didn't directly address the merits, 2254(d) still requires deference to its conclusions. It unquestionably concluded that the defendant's due process rights were not violated because if -- because it affirmed the conviction.
+Kagan: Well, on harmlessness grounds.
+Shapiro: It is not clear that this -- the -- perhaps on harmlessness grounds. But even if on harmlessness grounds, under cases like Harrington and Davis v. Ayala, that's a -- there's still a decision on the merits, an adjudication on the merits, and 2254(d) still requires deference to that adjudication on the merits.
+Kagan: Whose adjudication on the merits?
+Shapiro: The Illinois Appellate Court's.
+Kagan: We might be going in circles, but I thought you just said if -- even if we view this opinion as not reaching a determination on the merits.
+Shapiro: You could view this opinion as deciding the question of whether his due process rights were violated, deciding that question based solely on harmless error, although I said, that is not -- we don't believe that's the best reading of the --
+Scalia: Isn't that a merits determination?
+Shapiro: Yes. It is a merits determination.
+Scalia: I always thought harmlessness --
+Kagan: Harmlessness, you get deference on. There's no question. Harmless, you get deference on. The question is whether you get deference on the notion that this surmising about motive was not error. Because to me, I read this opinion and I say they never say it's not error. Quite the opposite. They declare it harmless error.
+Shapiro: The -- ultimately, the question that the Court has to answer under 2254(d) is whether the State's adjudication results in a decision that is in violation of an unreasonable application of clearly established law of this Court. It's -- it's ultimately the adjudication that this Court is looking at. And the harmless -- even if you believe it's just a harmlessness determination on which they decided, that is under Davis v. Ayala on merits determination, and so the adjudication is entitled to deference.
+Kagan: Okay. So harmlessness, I think you're right, is entitled to deference. But assume if you think that this judge unconstitutionally convicted somebody on the basis of evidence that had never been introduced at trial. If you think that, how could that not be harmful? That's -- I mean, it's almost tautological. If the error is that he convicted somebody on the basis of evidence that was not proper to think about, well, of course, that's harmful. That's why he convicted him.
+Shapiro: Yes, and for that reason, we believe the best reading of the opinion is that they did not find constitutional error. Because if it was not a material factor in the verdict, it could not have been a violation of his due process rights. I'd like to reserve the rest of my time for rebuttal.
+Roberts: Thank you, counsel. Mr. Levenstam.
+Levenstam: Mr. Chief Justice, and may it please the Court: The Illinois Appellate Court unanimously found that there was no evidence that Mr. Owens knew Mr. Nelson was dealing drugs, or that he was himself involved with gangs or with the illegal drug trade. And subsequently, the presentence report revealed that he had no convictions whatsoever. The Court then said that this was -- by a two-to-one margin -- this was harmless error. And I recognize that harmlessness is entitled to deference, and I intend to discuss that. But it seems to me that really, we're past the point of whether there was evidence concerning knowledge.
+Scalia: Doesn't -- doesn't the case really -- much of the case hinge on what you mean by error? If you mean by error simply introducing into your decision matters that were not in the record that had no support in the evidence, if that's what you mean by error, it's one thing. It's another thing if you mean by error using evidence that was not in the record as a basis for your decision. And which of the two you assign this to, it seems to me, determines the outcome of the case.
+Levenstam: I agree. And it seems to me, based on what he said, after saying -- expressing dissatisfaction with the witnesses' testimony, he said what the real issue was to him -- and I have yet to be in front of a trial court making a, you know, bench trial decision who calls the real issue something other than what he has to decide to --
+Ginsburg: But what about the presumption that the judge knows and applies the law? And I don't think there's a rational judge who would think it proper to base a conviction on conjecture that has no evidentiary basis. So if we add to this that we presume the judge knows and applies the law, and that is he knows the defendant must be convicted on the basis of evidence presented in court.
+Levenstam: Well, there are two presumptions at work, in a sense. This is a morning seems filled with presumptions. The presumption that he knows the law, I think, is absolutely correct. And I think that presumption is a reason why we know that he found motive an integral part of his conclusion of guilt, and that is because the Illinois Supreme Court decided the People v. Smith case in 1990, and it reversed a conviction that was based on identification that rested on motive. And it said it is essential, if you are going to convict someone based on a motive theory, that you find the knowledge that the accused have the actual knowledge necessary to generate the motive. And when he makes that finding, who -- defendant knew he was a drug dealer, he is going through the paces in Illinois law to establish the motive that is then the basis for the following finding of guilty of murder.
+Roberts: I think we've gotten pretty far afield from the issue here. Which case of ours clearly established that it's due process-error when a judge speculates about an issue that is not pertinent to guilt and there's sufficient evidence of guilt on all the elements? Which case of ours says that?
+Levenstam: There is no case that says that, Your Honor. But this is different from that situation because this is precisely how guilt is determined. The fact that it's not an element doesn't mean that it's not what he rested his guilty verdict on.
+Roberts: I just want to -- I mean, under AEDPA, isn't it critical that there be a case --
+Levenstam: Yes, that Turner --
+Roberts: -- as opposed to what you're saying is the case is: Well, you know, we have cases that say you can't be guilty if there wasn't evidence of guilt.
+Levenstam: Right.
+Roberts: But that's a -- our cases clearly make sure --
+Levenstam: Turner --
+Roberts: -- that that's too high a level of generality.
+Levenstam: Well, no. I think Turner and Taylor are per -- all of those cases --
+Roberts: Taylor says the problem is the judge said you can infer from the fact that the person has been arrested and indicted, right? Is that's Taylor?
+Levenstam: There was some -- there was a bad instruction there, yes.
+Roberts: Okay. Well, that's very different from here. The judge is the factfinder. He's not instructing anybody on anything. What about Williams? Thathey -- the Seventh Circuit only cited three of our cases, right?
+Levenstam: Yes. We've cited a few more.
+Roberts: Well, I know. But that doesn't count, right? It's the ones that the Seventh Circuit counted -- cited under AEDPA.
+Levenstam: Well, I think if it exists in those cases, interweave and cite themselves, cases like Shepherd v. Maxwell, and Irving --
+Roberts: Yeah. Well, what about three cases: Taylor is about an erroneous instruction to a jury. That's not what this is. Williams. Williams. That's the prison attire case, right? The people are --
+Levenstam: Yes.
+Roberts: Nothing like that is here. That's an outside influence on the factfinder. And Holbrook is the sheriffs who were --
+Levenstam: Right.
+Roberts: -- blanketed. Nothing like that happens here.
+Levenstam: Each of those cases applied a -- what I would call a prophylactic application of due process to avoid a jury coming to a conclusion based on outside-the-record facts or assumptions. Here, what we have is a trial court judge who has told us, on the record, that that's exactly what he's done. And so --
+Roberts: That's -- what is exactly what he's done?
+Levenstam: That he's told us he has based his finding on motive, based it on the knowledge -- which is not -- which is not supported in the record.
+Breyer: But that's not what the State says. The State says you read the relevant three sentences: The issue was you have a 17-year-old youth on a bike who is a drug dealer; who Larry Owens knew he was a drug dealer. Larry Owens wanted to knock him off. I think the State's evidence has proved that fact. You see? So two members of the Illinois Supreme Court say the words "that fact" refer to the sentence, Larry Owens wanted to knock him off. And the sentence preceding that is the judge's speculation as to why. One judge in the Supreme Court says what you said, that when you read that together, it means "that fact" referred to the motive. Now, there we are. And the question is what are we supposed to do? Is there enough here to say that they are clearly wrong, those two members?
+Levenstam: Yes --
+Breyer: I mean, there we are, the Seventh Circuit thought, yeah. There is.
+Levenstam: Well --
+Breyer: They're clearly wrong. The -- it doesn't refer to the preceding sentence. It refers to the preceding two sentences.
+Levenstam: Well --
+Breyer: Have I got the issue?
+Levenstam: Well, perhaps that's one way of looking at it, yes. But --
+Breyer: That seems to be the way that your --
+Levenstam: If --
+Breyer: -- opponents are looking and it.
+Levenstam: If the court reporter had put a comma there, I think what he's -- what -- everything from "skirted the real issue." Because what he then does is define the real issue: What he has to -- what is going to bring him over the line to be beyond a reasonable doubt. And the issue to me is -- and it goes all the way on from there to the end, and "that fact," the issue to him is the "that fact." I don't think -- I don't think you can get to -- precisely because Illinois law, which I think he was following his error was of fact -- says you need to establish knowledge to create motive.
+Roberts: What if the -- what if the record said -- the judge says, okay, I -- you know, the State has satisfied all of the elements required for murder in Illinois. You know, the real issue here is about these gangs selling drugs. In other words, is there -- and if, in fact -- I mean, does that make a difference?
+Levenstam: Yes.
+Roberts: Okay.
+Levenstam: Yes.
+Roberts: Now, why don't we accept the presumption that the judges are presumed to know the law and are following it, and interpret that in light of -- in light of that record?
+Levenstam: Well, but --
+Roberts: Because you don't challenge that there's sufficient evidence of guilt, do you?
+Levenstam: The -- no, that's not our issue. I mean, that was challenged below, but that's no longer at issue in the case. The presumption that he's referring to -- that the Illinois Appellate Court is referring to there, is a presumption concerning the trial court's relying only on properly-admitted evidence, and it's the presumption this Court explained is necessary in Williams v. Illinois to enable trial judges to try cases. But that -- so that they can set aside, presumably, the evidence they've heard that's inadmissible and proceed on the admissible evidence. But that's not what's happened here. What's happened here is there is no evidence whatsoever of Mr. Owens knowing or being involved in any of this business. And then you have the judge specifically saying that he knew that fact, that Mr. Owens knew that Mr. Nelson was dealing drugs. And that --
+Scalia: I'm not sure -- I'm not sure what he means when he says "the issue here." He might have meant only the question here, the unresolved question. What perplexes me here is that we don't have any evidence of motive. And that would be a question. And so he -- you know, he supplies that, but he --
+Levenstam: But it --
+Scalia: -- doesn't say --
+Levenstam: -- it --
+Scalia: He doesn't say that it's necessary to his decision.
+Levenstam: Well, it seems to me they -- the real -- again, I've -- I've not seen a trial court judge faced with the -- having to determine guilt or innocence frames a real issue as being an irrelevant sort of back story kind of --
+Breyer: Yeah, but you're assuming what their argument is. But the question is what is the real issue.
+Levenstam: Well, we --
+Breyer: We can get something further. Were you the trial judge -- trial lawyer?
+Levenstam: No, no, no, no, no, no.
+Breyer: But you've read the record pretty well?
+Levenstam: Oh, yes.
+Breyer: So now, I think all of the witnesses skirted the real issue. Okay? What did they skirt?
+Levenstam: Well --
+Breyer: They skirt what they didn't talk about.
+Levenstam: But --
+Breyer: So what was the rest of the trial about?
+Levenstam: Well, no --
+Breyer: What was the issue in the trial?
+Levenstam: The trial is an extremely short one, and I recommend it to Your Honor. It's --
+Breyer: And what is it about?
+Levenstam: -- about a hundred pages. It's about this event that happened outside --
+Breyer: No. I understand that. But I mean -- what he says is the witnesses skirted the real issue. If you will tell me that all they talked about was: We identify him -- no, your identification is no good; yes, our identification is good; no, it isn't; yes, it is -- if that's what it was about, then that couldn't be the real issue, so they're -- that they skirted, because they didn't skirt it.
+Breyer: So something else has to be; therefore, motive. But is that what happened?
+Levenstam: No.
+Breyer: What happened?
+Levenstam: I believe what happened is the judge did not believe these people's story; that he -- I'm speculating now, too. But the fact is that the harmlessness is something that --
+Breyer: No. You don't understand my question, because it was favorable to you. My question was -- my question was what did those witnesses talk about. He says they skirted the real issue. I want to know what they talked about --
+Levenstam: Well, they --
+Breyer: -- the rest of the trial.
+Levenstam: They talked about what they saw, and they talked about their identifications. It was very brief. And what I'm saying is, by skirting the real issue, he's saying that he does not credit what they've said.
+Roberts: So wait. So they're -- what they were talking about is the identification?
+Levenstam: Yes.
+Roberts: And you're saying what the judge said is I don't think Larry Owens was the guy? I don't --
+Levenstam: No, no, no, no.
+Roberts: -- think --
+Levenstam: I don't think they're telling the truth here about what really happened out there that night.
+Roberts: So he's saying you think he determined that they had not really identified the perpetrator. And yet, because he thought it was a drug -- this guy was a drug dealer, well, he ought to be found guilty anyway?
+Levenstam: I can't speak beyond the words --
+Roberts: No, but it's very important --
+Roberts: -- as we try to read this statement, and I'm -- I think it's --
+Levenstam: But --
+Roberts: -- if you think the judge did not think this was the guy but the guy who happened to be there was a drug dealer and so he sentenced him on first degree murder, I -- that's a pretty incredible submission.
+Levenstam: No, that's not what I'm saying.
+Roberts: Well, what are you --
+Levenstam: Because the guy that was there was not -- had -- there was no basis for him -- for anyone thinking he was a drug dealer, and that's the point. I think that --
+Roberts: Well, I thought you said that the real issue was that the judge did not think that the witnesses were credible.
+Levenstam: The -- I'm sorry. I think what I meant to say was that, when he said the witnesses skirted the real issue, it was reflecting some measure of dissatisfaction with the witnesses' testimony. Now, I don't know what that was. I don't know. But what I do know is he immediately says what -- he then frames what the issue is to him. And in framing what the issue is to him, he says that Mr. Owens knew that this victim was a drug dealer and wanted to knock him off, presumably because he's a drug dealer. And from the very next thing that he says, his finding of guilty of murder. So those things follow one right after the other. It is the only thing -- it is the only fact that he discusses after expressing whatever dissatisfaction he has with the witnesses' testimony. And so it is -- at a minimum, it is an integral part of the process that he has gone through to reach the finding of guilt.
+Kagan: When --
+Breyer: That's what you say, but what I want to puthere's -- I'm trying to get the other side, so you have to answer that squarely. And maybe I'll put it this way: There's -- well, the judge has been sitting there through this fairly short trial. He is annoyed at all these witnesses. They've been pussy-footing what's going on. They saw the murder. No problem about that. But they're not explaining it because they're frightened of saying what it's involved in. And he's fed up, so he's going to say, I'm going to say what's really happening here. What's really happening here is this is a drug deal that failed. Or something like that. So that's the explanation of what he said. If you could bring him back and say, judge, did you mean motive played a role here? He'd say, of course not. Of course not. It didn't play a role in my decision. All that played a role in my decision was what the witnesses said, which was, he's the guy. I was just saying what's going on. Now, what's -- I think they're saying something like that.
+Levenstam: And my answer to that is that is speculation upon speculation upon speculation, and it's not a basis for putting somebody behind bars for 25 years. And the harmless error -- they bear the risk on harmless error. The State. They have to explain -- if they want to explain something other than what's on the page, that's for them to do. And the Illinois Appellate --
+Scalia: No, you have to establish that it's error --
+Levenstam: Yes.
+Scalia: -- before they have to establish that it's harmless.
+Levenstam: Well, the only --
+Scalia: But -- and what Justice Breyer was saying is it wasn't error. He's just speculating, trying to make sense of the whole thing, but that wasn't the basis for his decision. You have to establish that it was the basis for his decision, whereupon there is error, whereupon the State has to show that it's harmless.
+Levenstam: Well, whereupon I point back to the Illinois Appellate Court conclusion that this was error, three-to-zip error, two-to-one --
+Scalia: Well, again, that depends on what you mean by error. If all they mean by it was error that you should not bring in, in your opinion, any facts that are not on the record, it's a mistake to do that -- I think that's what they meant by it was error.
+Levenstam: Well, and that's what I think they thought he did, and I think they decided that was error, and then they turned and did a harmless-error analysis. And their harmless-error analysis was insufficient, I think, for three reasons. Okay? I believe that it was -- it fails the Brecht-Kotteakos test because they simply took a look at the remaining evidence and they did not make any effort, as the Seventh Circuit did, to assess precisely what impact this knowledge/motive finding had on the judge. And as we've pointed out in our briefs, the simple answer long ago would have been to remand it and ask the judge, and then we wouldn't be here. But the -- so that's number one. Number two --
+Ginsburg: But that's not what happened. The Seventh Circuit required a new trial, right?
+Levenstam: Yes. The Seventh Circuit did --
+Ginsburg: Okay. And what is the posture of this -- the case at the moment?
+Levenstam: It's -- it's stayed pending this Court's determination.
+Sotomayor: There's a new trial that was necessitated by the judge's death, correct?
+Levenstam: Yes.
+Sotomayor: The judge who passed --
+Levenstam: The -- yes. Who --
+Sotomayor: -- who made the findings?
+Levenstam: Yes. The judge is gone. The judge is -- has -- is -- has passed away a few -- just a few years ago.
+Alito: Yes.
+Ginsburg: Is that --
+Levenstam: In the --
+Ginsburg: Is that who made this statement? The trial judge?
+Levenstam: Yes.
+Alito: The one statement that the judge made that you claim is utterly unsupported by the evidence, I gather, is the statement: "Larry Owens knew he was a drug dealer."
+Levenstam: Yes.
+Alito: That's the -- that's the only one?
+Levenstam: Yes.
+Alito: Now, there -- could -- there's some evidence from which one might infer that. It might be insufficient. It would depend on the standard of review. But there's evidence that Nelson, the victim, was selling drugs. Could you not infer -- could a reasonable finder of fact not infer from the record here that this kid, this 17-year-old kid with 40 packages of drugs, who's hanging around in front of this -- in front of this bar, was there for the purpose of selling drugs?
+Levenstam: That would be a reasonable inference.
+Alito: And the defendant walked up to -- there's evidence that the defendant walked up to this kid standing in front of the bar selling drugs, and spoke to him for some period of time, right?
+Levenstam: Well, that would be Mr. Evans, not Mr. Johnnie. Mr. Johnnie comes --
+Alito: Yes, but there's evidence of that, if you believe that, that that took place, right?
+Levenstam: There is Mr. Evans' testimony.
+Alito: There's evidence of that. So could someone infer from those two facts that if this kid was pretty openly selling drugs and the defendant walked up and spoke to him to some -- for some period of time, he knew what he was doing?
+Levenstam: On -- yes. But the Illinois Appellate Court has already told us that Mr. Evans' testimony was -- his credibility was severely undermined, and it was contradicted by Mr. Johnnie's testimony specifically, which the Illinois Appellate Court relied on, although erroneously, because they misapplied Neil v. Biggers. And the fact is that they can -- they held, and I think you defer to this, that there is no evidence that Mr. Owens knew Mr. Nelson was dealing drugs.
+Alito: Now, the question on the merits of -- putting aside the issues of AEDPA and harmless error, when would it -- when does it violate due process for a judge in a bench trial to make a finding on a fact that is not needed for conviction? And what case of ours --
+Levenstam: Well --
+Alito: -- sets out the standard for that?
+Levenstam: Again, as I said, there is no case of yours that sets forth the standard for that.
+Alito: What is the --
+Levenstam: But here --
+Alito: What is the standard?
+Levenstam: The -- well, the standard is the due process standard in Turner and Taylor and the other cases that the Seventh Circuit cited and that we've cited. But that the fact is that the motive was a part of the identification analysis.
+Alito: Well, I'm trying to figure out what the standard is, if you could put it in words. Suppose that the trial judge had made a finding, like the court of appeals appears to, about the time of nautical twilight, and suppose the trial judge was wrong on that. Then what? So the trial judge has made a finding of fact on a fact that's not necessary for conviction. Might conceivably have some relevance to the determination. So what is the due process standard for determining whether that requires a new trial?
+Levenstam: Well, I think at that point you would do a harmless-error analysis.
+Kagan: Mr. Levenstam, I guess I don't understand why you're -- I would have thought that the answer to Justice Alito's question was that you're not saying that what happened here -- what went wrong here, you're not saying, is that there was a superfluous finding of fact.
+Levenstam: Well --
+Kagan: You're saying that there is a superfluous finding of fact that actually went into the judge's --
+Levenstam: Well, yes.
+Kagan: -- final determination.
+Levenstam: Yes. I --
+Kagan: It was not just any old superfluous finding of fact.
+Levenstam: Yes.
+Kagan: It was not superfluous. It was a made-up finding of fact that created the judge's final conclusion that the man was guilty. That played some role in that final conclusion.
+Levenstam: And I apologize if I haven't said that already, but that is certainly our point, is that the judge framed the issue, laid out the issue, found the fact that was directly in front of the finding of conviction --
+Sotomayor: And --
+Levenstam: -- and it was the only fact specified by the judge in reaching that conclusion.
+Sotomayor: -- in Taylor --
+Alito: It depends -- when you're reading this -- in reading what the judge said, it depends on -- the reasonableness of what the judge said may depend on whether you think that the judge inferred that Larry Owens killed the victim because he knew he was a drug dealer, or whether the judge was -- in attempting to fill in the blanks of this case, inferred that he knew he was a drug dealer from the fact that there was proof that he killed him.
+Levenstam: But there --
+Alito: So if you know that the victim is a drug dealer and the defendant talked to the victim, and then the defendant proceeded to beat his brains out with a baseball bat, you could probably infer from that the reason why he did it was that he knew he was a drug dealer, could you not?
+Levenstam: The reason why whoever did it did it because -- yes, I think that's right. The problem comes with Mr. Owens and the evidence that links him. And that's where we get to the harmless-error analysis, and the Illinois Appellate Court's harmless-error analysis was constitutionally inadequate.
+Roberts: But I'm sorry. You said the problem is with the evidence that linked him to the --
+Levenstam: Mr. Owens, right.
+Roberts: But you're not challenging the sufficiency of that evidence.
+Levenstam: I'm challenging the credibility of that evidence. The trial court never found it credible. In fact, he expressed some concerns about the witness.
+Roberts: Well, but credibility was the key issue in the trial, right?
+Levenstam: Yes. Yes. And unfortunately, the Illinois Appellate Court, in reviewing this, said specifically here there is no indication whether or not the trial judge assessed the credibility of the eyewitnesses, resolved conflicts in their testimony, or waived the evidence or drew reasonable inferences therefrom. And then it proceeded to do essentially just that, which it can't do because it didn't see any of these people. And the -- and it is clear from the record that there was a fair amount of equivocation by even Mr. Johnnie. His behavior that evening was extremely suspicious. The Illinois Appellate Court made basically mistake after mistake in its harmless-error analysis.
+Roberts: But that -- seems to me like you're challenging the sufficiency of the evidence, and I -- again, as I -- as the case comes before us, we assume there is sufficient evidence to convict under every element of the crime.
+Levenstam: I'm -- I'm challenging the sufficiency of the Illinois Appellate Court's harmless-error analysis, upholding the conviction in light of the fact that it concluded that there were no credibility determinations that it could rely upon made below. Typically, there is an assumption that credibility analysis is done, and that's what's -- the appellate court works from. But here the appellate court tells us that it's is assuming there are none. And then it goes and it applies the Neil v. Biggers analysis, which is analysis determining the reliability of identification --
+Scalia: That doesn't make any sense. You're saying that the -- whathe Illinois Supreme Court thought the opinion below was, was that the judge didn't think eyewitness testimony proved that this was the guy who hit him with a baseball bat. But nonetheless, he thought this guy was a drug dealer and that will be enough. I -- that doesn't make any sense. The trial court must have accepted the credibility --
+Levenstam: Your Honor --
+Scalia: -- of one or both of the witnesses.
+Levenstam: I don't -- I'm telling you -- I'm reading you the Illinois Appellate Court opinion, and I'm telling you I agree with you when it doesn't make any sense, comes out time and again, because it doesn't make any sense, because this was a terribly botched job. And even under the deferential standards of Brecht and Kotteakos, the trial court got it -- based it on evidence that wasn't in the record, and the Illinois Appellate Court affirmed based on legally inadequate, harmless-error analysis, constitutionally inadequate and objectively unreasonable. They applied -- instead of applying harmless-error law, they applied this Neil v. Biggers. It's a reliability analysis for whether something gets admitted into evidence. It's not the outcome. It's the inflow into the trial, not the determination at the end that this guy Johnnie, who's been hiding out from the police all night and then hides out from the police for a week, is somehow credible. He's the guy that's been telling the trial judge, oh, we talked to the police. Well, it turns out on cross-examination he didn't talk to the police. It was his driver who talked to the police.
+Roberts: I'm sorry, counsel. Maybe I'm just repeating myself. That sounds like you're arguing the sufficiency of the evidence.
+Levenstam: But Your Honor, it is not a direct sufficiency. I am challenging the Illinois Appellate Court's harmless-error analysis. It went through and said Mr. Johnnie should be believed because X, Y, and Z. And I am telling you that in conducting its harmless-error analysis, it overlooked A, B, C, D, E all the way through W.
+Roberts: Yes, you're saying we're not challenging the sufficiency of the evidence. We are challenging the Illinois court's determination that it was harmless error that there was not sufficient evidence.
+Levenstam: The mode of analysis was wrong. The -- as I said, the Neil v. Biggers analysis is a reliability analysis that talks about admissibility. It doesn't allow the Court to make a credibility determination in the absence of --
+Ginsburg: I thought you're conceding that there was sufficient evidence. If all there had been is these two eyewitnesses, there would be nothing you could object to. But what you're saying is that the error that this judge made in confining this motive based on evidence is not in the record, that that error had a substantial influence on the judgment that it rendered.
+Levenstam: Yes, substantial and injurious.
+Ginsburg: So indeed, there was sufficient evidence, yes, but the finding of the conviction rested on an error that had --
+Levenstam: Absolutely. And that was not harmless under Brecht and Davis. If there are no further questions, I will thank the Court and sit down.
+Roberts: Thank you, counsel. Ms. Shapiro, you have four minutes remaining.
+Shapiro: Thank you, Mr. Chief Justice, and may it please the Court: I'd like to start by talking briefly about the harmless-error analysis that the Illinois Appellate Court undertook. Even assuming -- which we do not concede -- that they found constitutional error and then went ahead and did a harmless-error analysis, at best, the Respondent here can argue -- is trying to argue that ithat it engaged in an unreasonable application of Chapman, that's only one thing that Respondent here would have to establish to overcome -- to establish that the error was not harmless. He also has to meet the Brecht standard of -- that the error, if any, had a substantial and injurious effect on the verdict. The Illinois Appellate Court found that the speculation about motive did not -- was not a material factor in the verdict; therefore, it could not have been a harmful error. Second, I'd like to say something about the role of motive in a case involving --
+Ginsburg: Could you explain how they were able to make that finding that the motive that the judge specified based on evidence that's not in the record, that that didn't have an influence?
+Shapiro: Certainly. The Illinois Appellate Court talks about the evidence at trial. And talked about the fact that the judge has just sat through a trial in which he's heard two eyewitnesses, unrebutted eyewitnesses identify the defendant as the killer. It would nothe Illinois Appellate Court's conclusion that it -- putting that evidence together with the presumption of regularity, the Illinois Appellate Court presumes that the motive was -- concludes -- excuse me -- that the motive was nothe speculation about motive was not a material factor in the verdict. And motive is not -- as it's been pointed out, motive is not an element of murder in Illinois. And motive -- although motive can be used to establish identity, it doesn't have to be used to establish identity. People v. Smith is a case about whether or not the State can put in evidence of motive without establishing that the defendant knew about the -- this evidence that they're putting in. It has nothing whatsoever to do with whether motive is a necessary part of establishing identity in a case where you have two unrebutted eyewitnesses. To conclude, for Respondent to prevail, this Court would have to find that the trial judge would have disregarded some of the most basic principles of jurisprudence and found the defendant -- and you would have to conclude that the Illinois Appellate Court's factual conclusions were -- both factual and legal conclusions were objectively unreasonable. On AEDPA, those conclusions cannot be reached and the Seventh Circuit should be reversed. Thank you.
+Roberts: Thank you, counsel. The case is submitted.
+Carolyn E. Shapiro for the petitioner
+Barry Levenstam for the respondent
+Petitioner / Appellant: Stephen Duncan
+Respondent / Appelee: Lawrence Owens
+||
+Roberts voted for the petitioner
+Scalia voted for the petitioner
+Kennedy voted for the petitioner
+Thomas voted for the petitioner
+Ginsburg voted for the petitioner
+Breyer voted for the petitioner
+Alito voted for the petitioner
+Sotomayor voted for the petitioner
+Kagan voted for the petitioner
