@@ -1,68 +1,125 @@
-from bs4 import BeautifulSoup
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.chrome.options import Options
-from selenium import webdriver
+"""
+Fetch basic case information from the Oyez API (no Selenium).
+Uses the same API approach as get_cases.py so it works in WSL/headless environments.
+"""
 import json
 import os
+import re
+from html import unescape
+
 import requests
 from tqdm import tqdm
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 
+SESSION = requests.Session()
+SESSION.headers.update({
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json',
+})
+
 with open(os.path.join(DATA_DIR, 'cases.json'), 'r') as file:
     cases = json.load(file)
 
 
-def get_basic(case):
+def _api_url_from_main_url(main_url: str) -> str:
+    """Convert www.oyez.org case URL to api.oyez.org case URL."""
+    return main_url.replace('www.oyez.org', 'api.oyez.org')
+
+
+def _strip_html(html: str) -> str:
+    """Remove HTML tags and decode entities."""
+    if not html or not isinstance(html, str):
+        return ''
+    text = re.sub(r'<[^>]+>', ' ', html)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return unescape(text)
+
+
+def get_basic(case: dict, timeout: int = 30) -> dict | None:
     """
-    Extract basic case information from Supreme Court case page.
+    Fetch basic case information from the Oyez API.
 
     Args:
-        case (dict): Case dictionary containing 'main_url', 'name', and 'year'
+        case: Dict with 'main_url', 'name', 'year'.
+        timeout: Request timeout in seconds.
 
     Returns:
-        dict: Extracted case information including transcript URL, petitioners, 
-              facts, question, votes, majority, and parties
-        None: If case was vacated and remanded
+        Dict with transcript_url, petitioners, facts, question, votes, majority, parties;
+        None if case was vacated and remanded or API request failed.
     """
     url = case['main_url']
-    driver.get(url)
+    api_url = _api_url_from_main_url(url)
 
-    # Wait for the page to load completely
-    WebDriverWait(driver, 3).until(
-        EC.presence_of_element_located(
-            (By.CSS_SELECTOR, 'h3.vote-description'))
-    )
-
-    html = driver.page_source
-    soup = BeautifulSoup(html, 'html.parser')
-
-    # Check conclusion first - return None if vacated and remanded
-    conclusion = _extract_conclusion(soup)
-    if conclusion is not None and 'Vacated and remanded' in conclusion:
+    try:
+        r = SESSION.get(api_url, timeout=timeout)
+        r.raise_for_status()
+    except requests.RequestException:
         return None
 
-    # Extract transcript URL
-    transcript_url = _extract_transcript_url(soup)
+    try:
+        data = r.json()
+    except json.JSONDecodeError:
+        return None
 
-    # Extract petitioners information
-    petitioners = _extract_petitioners(soup)
+    # Check conclusion - return None if vacated and remanded
+    conclusion = (data.get('conclusion') or '') if isinstance(data.get('conclusion'), str) else ''
+    if conclusion and 'Vacated and remanded' in _strip_html(conclusion):
+        return None
 
-    # Extract case facts
-    facts = _extract_facts(soup)
+    # Transcript URL: first oral argument media link (API href) or empty
+    transcript_url = ''
+    oral = data.get('oral_argument_audio') or []
+    if oral and isinstance(oral, list) and len(oral) > 0:
+        first = oral[0]
+        if isinstance(first, dict) and first.get('href'):
+            transcript_url = first['href']
+        elif isinstance(first, dict) and first.get('id'):
+            transcript_url = f"https://api.oyez.org/case_media/oral_argument_audio/{first['id']}"
 
-    # Extract question
-    question = _extract_question(soup)
+    # Petitioners (advocates)
+    petitioners = []
+    for item in (data.get('advocates') or []):
+        if not isinstance(item, dict):
+            continue
+        adv = item.get('advocate') or {}
+        name = (adv.get('name') or '').strip() if isinstance(adv, dict) else ''
+        desc = (item.get('advocate_description') or '').strip()
+        if name or desc:
+            petitioners.append({'name': name, 'for': desc})
 
-    # Extract votes and majority
-    votes = _extract_votes(soup)
-    majority = _extract_majority(soup)
+    # Facts and question (strip HTML)
+    facts = _strip_html(data.get('facts_of_the_case') or '')
+    question = _strip_html(data.get('question') or '')
 
-    # Extract parties
-    parties = _extract_parties(soup)
+    # Votes and majority from first decision
+    votes = []
+    majority = ''
+    decisions = data.get('decisions') or []
+    if decisions and isinstance(decisions[0], dict):
+        dec = decisions[0]
+        majority = (dec.get('winning_party') or '').strip()
+        for v in (dec.get('votes') or []):
+            if not isinstance(v, dict):
+                continue
+            member = v.get('member') or {}
+            name = (member.get('last_name') or member.get('name') or '').strip() if isinstance(member, dict) else ''
+            vote = (v.get('vote') or '').strip().lower()
+            if vote not in ('majority', 'minority'):
+                vote = 'majority'
+            if name:
+                votes.append({'name': name, 'vote': vote})
+
+    # Parties
+    parties = {}
+    fp = (data.get('first_party') or '').strip()
+    sp = (data.get('second_party') or '').strip()
+    fpl = (data.get('first_party_label') or '').strip()
+    spl = (data.get('second_party_label') or '').strip()
+    if fpl and fp:
+        parties[fpl] = fp
+    if spl and sp:
+        parties[spl] = sp
 
     return {
         'name': case['name'],
@@ -74,171 +131,61 @@ def get_basic(case):
         'question': question,
         'votes': votes,
         'majority': majority,
-        'parties': parties
+        'parties': parties,
     }
-
-
-def _extract_conclusion(soup):
-    """Extract conclusion from the page."""
-    conclusion_div = soup.find('div', attrs={'ng-if': 'case.conclusion'})
-    if conclusion_div:
-        # Look for conclusion text in various possible elements
-        conclusion_text = conclusion_div.get_text(strip=True)
-        if conclusion_text:
-            return conclusion_text
-    return None
-
-
-def _extract_transcript_url(soup):
-    """Extract transcript URL from the page."""
-    li = soup.find(
-        'li', attrs={'ng-repeat': 'audio in case.oral_argument_audio'})
-    if li:
-        a = li.find('a')
-        if a and 'iframe-url' in a.attrs:
-            return a.attrs['iframe-url']
-    return ''
-
-
-def _extract_petitioners(soup):
-    """Extract petitioners information from the page."""
-    divs = soup.find_all('div', class_='advocate ng-scope')
-    petitioners = []
-    for div in divs:
-        a_tag = div.find('a')
-        span_tag = div.find('span')
-        if a_tag and span_tag:
-            petitioners.append({
-                'name': a_tag.text.strip(),
-                'for': span_tag.text.strip()
-            })
-    return petitioners
-
-
-def _extract_facts(soup):
-    """Extract case facts from the page."""
-    facts_div = soup.find(
-        'div', attrs={'ng-bind-html': 'case.facts_of_the_case'})
-    if facts_div:
-        paragraphs = facts_div.find_all('p')
-        if paragraphs:
-            return '\n'.join([p.text.strip() for p in paragraphs])
-    return ''
-
-
-def _extract_question(soup):
-    """Extract question from the page."""
-    question_div = soup.find('div', attrs={'ng-bind-html': 'case.question'})
-    if question_div:
-        p_tag = question_div.find('p')
-        if p_tag:
-            return p_tag.text.strip()
-    return ''
-
-
-def _extract_votes(soup):
-    """Extract votes information from the page."""
-    vote_figures = soup.find_all(
-        'figure', attrs={'ng-class': '[vote.vote, vote.orderClass]'})
-    votes = []
-    for vote in vote_figures:
-        name_span = vote.find('span', class_='long ng-binding')
-        if name_span and 'class' in vote.attrs:
-            votes.append({
-                'name': name_span.text.strip(),
-                'vote': 'majority' if 'majority' in vote.attrs['class'] else 'minority'
-            })
-    return votes
-
-
-def _extract_majority(soup):
-    """Extract majority information from the page."""
-    majority_span = soup.find('span', class_='winner ng-binding ng-scope')
-    if majority_span:
-        return majority_span.text.strip()
-    return ''
-
-
-def _extract_parties(soup):
-    """Extract parties information from the page."""
-    aside = soup.find('aside')
-    if aside:
-        row = aside.find('div', class_='row')
-        if row:
-            party_divs = row.find_all('div')
-            parties = {}
-            for party_div in party_divs:
-                text = party_div.text.strip()
-                if text:
-                    words = text.split()
-                    if len(words) >= 2:
-                        parties[words[0]] = ' '.join(words[1:])
-            return parties
-    return {}
 
 
 # Configuration: Set to True to re-run previously failed cases
 RERUN_BAD_CASES = False
 
 with open(os.path.join(DATA_DIR, 'basic.json'), 'r') as file:
-    main = json.load(file)
+    raw = json.load(file)
+main = raw if isinstance(raw, list) else []
 
 with open(os.path.join(DATA_DIR, 'bad_cases.json'), 'r') as file:
-    bad_cases = json.load(file)
+    raw = json.load(file)
+bad_cases = raw if isinstance(raw, list) else []
 
 # Filter out cases that are already processed
-existing_case_names = {case['name'] for case in main}
-bad_case_names = {case['name'] for case in bad_cases}
+existing_case_names = {case['name'] for case in main if isinstance(case, dict) and case.get('name')}
+bad_case_names = {case['name'] for case in bad_cases if isinstance(case, dict) and case.get('name')}
 
 if RERUN_BAD_CASES:
-    # Include bad cases in processing if rerun is enabled
     cases_to_process = [
         case for case in cases if case['name'] not in existing_case_names]
 else:
-    # Exclude bad cases from processing
-    cases_to_process = [case for case in cases if case['name']
-                        not in existing_case_names and case['name'] not in bad_case_names]
+    cases_to_process = [
+        case for case in cases
+        if case['name'] not in existing_case_names and case['name'] not in bad_case_names
+    ]
 
 print(
-    f"Total cases: {len(cases)}, Already processed: {len(existing_case_names)}, Bad cases: {len(bad_case_names)}, To process: {len(cases_to_process)}, Rerun bad cases: {RERUN_BAD_CASES}")
-
-chrome_options = Options()
-chrome_options.add_argument('--no-sandbox')
-chrome_options.add_argument('--disable-dev-shm-usage')
-chrome_options.add_argument('--disable-gpu')
-chrome_options.add_argument('--remote-debugging-port=9222')
-
-driver = webdriver.Chrome(options=chrome_options)
+    f"Total cases: {len(cases)}, Already processed: {len(existing_case_names)}, "
+    f"Bad cases: {len(bad_case_names)}, To process: {len(cases_to_process)}, "
+    f"Rerun bad cases: {RERUN_BAD_CASES}"
+)
 
 for case in tqdm(cases_to_process, desc="Processing cases"):
     try:
         case_data = get_basic(case)
-        if case_data is not None:  # Only append if not vacated and remanded
+        if case_data is not None:
             main.append(case_data)
 
-            # If this case was previously in bad_cases and now processed successfully, remove it
             if RERUN_BAD_CASES and case['name'] in bad_case_names:
-                bad_cases = [
-                    bc for bc in bad_cases if bc['name'] != case['name']]
+                bad_cases = [bc for bc in bad_cases if bc['name'] != case['name']]
                 with open(os.path.join(DATA_DIR, 'bad_cases.json'), 'w') as file:
                     json.dump(bad_cases, file)
-                print(
-                    f"Successfully processed previously failed case: {case['name']}")
+                print(f"Successfully processed previously failed case: {case['name']}")
 
             with open(os.path.join(DATA_DIR, 'basic.json'), 'w') as file:
                 json.dump(main, file)
-    except TimeoutException:
-        # WebDriverWait timeout - add to bad cases and continue
-        print(f"Timeout waiting for page elements for case: {case['name']}")
-        # Only add to bad_cases if it's not already there
+    except requests.RequestException as e:
+        print(f"Request failed for case {case['name']}: {e}")
         if case['name'] not in bad_case_names:
             bad_cases.append(case)
         with open(os.path.join(DATA_DIR, 'bad_cases.json'), 'w') as file:
             json.dump(bad_cases, file)
         continue
     except Exception as e:
-        print(
-            f"An error occurred while processing case {case['main_url']}: {e}")
+        print(f"Error processing case {case['main_url']}: {e}")
         break
-
-driver.quit()
