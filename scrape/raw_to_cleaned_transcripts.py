@@ -13,7 +13,7 @@ from pathlib import Path
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 RAW_CASES_DIR = os.path.join(DATA_DIR, 'raw_cases')
-DEFAULT_OUTPUT_DIR = os.path.join(DATA_DIR, 'case_transcripts_cleaned')
+DEFAULT_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'case_transcripts_cleaned')
 
 
 def safe_filename(name: str) -> str:
@@ -98,40 +98,89 @@ def clean_turn_text(text: str) -> str:
 
 
 def build_footer(case: dict) -> str:
-    """Build JUSTICE VOTES and OUTCOME from case dict (basic.json or raw file metadata)."""
+    """Build JUSTICE VOTES and OUTCOME from case dict.
+    Votes use Petitioner/Respondent side labels (matching ConvoKit format).
+    Votes are shuffled randomly (matching ConvoKit generator behavior).
+    """
+    import random
     votes = case.get('votes') or []
     lines = ["JUSTICE VOTES:"]
     if not votes:
         lines.append("(none in metadata)")
     else:
-        for v in votes:
+        shuffled = list(votes)
+        random.shuffle(shuffled)
+        for v in shuffled:
             if not isinstance(v, dict):
                 continue
             name = (v.get('name') or '').strip()
-            vote = (v.get('vote') or '').strip()
+            # New format: votes have 'side' field (Petitioner/Respondent/Unknown)
+            side = (v.get('side') or '').strip()
+            if not side:
+                # Fallback for old format with 'vote' field (majority/minority)
+                side = (v.get('vote') or '').strip()
             if name:
-                # basic.json has majority/minority; ConvoKit has Petitioner/Respondent
-                lines.append(f"{name}: {vote}")
+                lines.append(f"{name}: {side}")
 
-    majority = (case.get('majority') or '').strip()
-    outcome = f"OUTCOME: {majority}." if majority else "OUTCOME: Unknown."
+    win_side = case.get('win_side', -1)
+    if win_side == 1:
+        outcome = "OUTCOME: Petitioner won."
+    elif win_side == 0:
+        outcome = "OUTCOME: Respondent won."
+    elif win_side == 2:
+        outcome = "OUTCOME: Unclear."
+    else:
+        outcome = "OUTCOME: Unknown."
     return "\n".join(lines) + "\n\n" + outcome
 
 
-def serialize_cleaned(turns: list[tuple[str, str]], footer: str) -> str:
-    """Same format as cleaned_transcript_generator: Speaker\\nText then ---\\nfooter."""
+def collapse_repeated_speaker(turns: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Merge consecutive turns by the same speaker into one turn."""
+    if not turns:
+        return []
+    out = []
+    cur_speaker, cur_text = turns[0]
+    for speaker, text in turns[1:]:
+        if speaker == cur_speaker and cur_text and text:
+            cur_text = cur_text.rstrip() + " " + text.lstrip()
+        else:
+            out.append((cur_speaker, cur_text))
+            cur_speaker, cur_text = speaker, text
+    out.append((cur_speaker, cur_text))
+    return out
+
+
+def build_header(case: dict) -> str:
+    """Build header with case context: year, facts, legal question."""
+    parts = []
+    year = case.get('year')
+    if year:
+        parts.append(f"YEAR: {year}")
+    facts = (case.get('facts') or '').strip()
+    if facts:
+        parts.append(f"FACTS: {facts}")
+    question = (case.get('question') or '').strip()
+    if question:
+        parts.append(f"QUESTION: {question}")
+    return "\n\n".join(parts)
+
+
+def serialize_cleaned(turns: list[tuple[str, str]], header: str, footer: str) -> str:
+    """Header, then Speaker\\nText turns, then ---\\nfooter."""
     parts = []
     for speaker, text in turns:
         parts.append(speaker)
         if text:
             parts.append(text)
     out = "\n".join(parts)
+    if header:
+        out = header + "\n\n---\n" + out
     if footer:
         out = out.rstrip() + "\n\n---\n" + footer
     return out + "\n" if not out.endswith("\n") else out
 
 
-def convert_one(raw_path: str, case: dict | None, normalize_speakers: bool = True) -> str:
+def convert_one(raw_path: str, case: dict | None, normalize_speakers: bool = True, merge_same_speaker: bool = False) -> str:
     """
     Read scraped JSON, clean turns, build footer from case or embedded metadata.
     Raw file can be: (1) list of {speaker, text} — case must be provided;
@@ -148,11 +197,11 @@ def convert_one(raw_path: str, case: dict | None, normalize_speakers: bool = Tru
         if not isinstance(statements, list):
             statements = []
         # Use embedded metadata when present; fall back to basic.json case
-        if isinstance(data, dict) and (data.get('votes') is not None or data.get('majority') is not None):
+        if isinstance(data, dict) and (data.get('votes') is not None or data.get('win_side') is not None):
             footer_case = {
                 'name': data.get('name') or (case.get('name') if case else ''),
                 'votes': data.get('votes') or [],
-                'majority': data.get('majority') or '',
+                'win_side': data.get('win_side', case.get('win_side', -1) if case else -1),
             }
         else:
             footer_case = case or {}
@@ -169,8 +218,12 @@ def convert_one(raw_path: str, case: dict | None, normalize_speakers: bool = Tru
         if speaker or text:
             turns.append((speaker, text))
 
+    if merge_same_speaker:
+        turns = collapse_repeated_speaker(turns)
+
+    header = build_header(case or {})
     footer = build_footer(footer_case)
-    return serialize_cleaned(turns, footer)
+    return serialize_cleaned(turns, header, footer)
 
 
 def main():
@@ -186,6 +239,11 @@ def main():
         "--no-normalize-speakers",
         action="store_true",
         help="Do not normalize speaker labels",
+    )
+    parser.add_argument(
+        "--merge-same-speaker",
+        action="store_true",
+        help="Merge consecutive turns by the same speaker",
     )
     args = parser.parse_args()
 
@@ -205,6 +263,7 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     normalize = not args.no_normalize_speakers
+    merge = args.merge_same_speaker
 
     matched = 0
     written = 0
@@ -220,15 +279,19 @@ def main():
             continue
         matched += 1
         try:
-            text = convert_one(str(raw_path), case, normalize_speakers=normalize)
-            name = case.get('name') or base
-            out_name = safe_filename(name) + ".txt"
+            text = convert_one(str(raw_path), case, normalize_speakers=normalize, merge_same_speaker=merge)
+            year = case.get('year', '')
+            # Extract docket number (case ID) from URL, e.g. "23-1039" from ".../cases/2024/23-1039"
+            main_url = case.get('main_url') or ''
+            case_id = main_url.rstrip('/').rsplit('/', 1)[-1] if main_url else ''
+            case_id = safe_filename(case_id) if case_id else safe_filename(case.get('name') or base)
+            out_name = f"{year}_{case_id}.txt"
             out_path = out_dir / out_name
             # avoid overwriting different case with same safe name
             if out_path.exists() and out_path.stat().st_size > 0:
                 existing = out_path.read_text(encoding='utf-8')
                 if existing.strip() != text.strip():
-                    out_name = f"{safe_filename(name)}_{base}.txt"
+                    out_name = f"{year}_{case_id}_{base}.txt"
                     out_path = out_dir / out_name
             out_path.write_text(text, encoding='utf-8')
             written += 1

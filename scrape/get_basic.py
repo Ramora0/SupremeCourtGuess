@@ -4,6 +4,7 @@ Uses the same API approach as get_cases.py so it works in WSL/headless environme
 """
 import json
 import os
+import random
 import re
 from html import unescape
 
@@ -77,24 +78,44 @@ def get_basic(case: dict, timeout: int = 30) -> dict | None:
         elif isinstance(first, dict) and first.get('id'):
             transcript_url = f"https://api.oyez.org/case_media/oral_argument_audio/{first['id']}"
 
-    # Petitioners (advocates)
-    petitioners = []
+    # Advocates with side info (petitioner=1, respondent=0)
+    # The advocate_description field contains strings like "for petitioner" or "for respondent"
+    advocates = []
     for item in (data.get('advocates') or []):
         if not isinstance(item, dict):
             continue
         adv = item.get('advocate') or {}
         name = (adv.get('name') or '').strip() if isinstance(adv, dict) else ''
-        desc = (item.get('advocate_description') or '').strip()
-        if name or desc:
-            petitioners.append({'name': name, 'for': desc})
+        desc = (item.get('advocate_description') or '').strip().lower()
+        if not name:
+            continue
+        if 'petitioner' in desc or 'appellant' in desc:
+            side = 1
+        elif 'respondent' in desc or 'appellee' in desc:
+            side = 0
+        else:
+            side = -1  # unknown
+        advocates.append({'name': name, 'side': side})
 
     # Facts and question (strip HTML)
     facts = _strip_html(data.get('facts_of_the_case') or '')
     question = _strip_html(data.get('question') or '')
 
+    # Parties (extracted early so win_side logic can use them)
+    parties = {}
+    fp = (data.get('first_party') or '').strip()
+    sp = (data.get('second_party') or '').strip()
+    fpl = (data.get('first_party_label') or '').strip()
+    spl = (data.get('second_party_label') or '').strip()
+    if fpl and fp:
+        parties[fpl] = fp
+    if spl and sp:
+        parties[spl] = sp
+
     # Votes and majority from first decision
     votes = []
     majority = ''
+    win_side = -1  # 1=petitioner, 0=respondent, 2=unclear, -1=unknown
     decisions = data.get('decisions') or []
     if decisions and isinstance(decisions[0], dict):
         dec = decisions[0]
@@ -110,26 +131,50 @@ def get_basic(case: dict, timeout: int = 30) -> dict | None:
             if name:
                 votes.append({'name': name, 'vote': vote})
 
-    # Parties
-    parties = {}
-    fp = (data.get('first_party') or '').strip()
-    sp = (data.get('second_party') or '').strip()
-    fpl = (data.get('first_party_label') or '').strip()
-    spl = (data.get('second_party_label') or '').strip()
-    if fpl and fp:
-        parties[fpl] = fp
-    if spl and sp:
-        parties[spl] = sp
+    # Determine win_side: compare winning_party to first_party/second_party labels
+    if majority:
+        if fp and majority == fp:
+            # First party won; use first_party_label to determine side
+            if fpl.lower() in ('petitioner', 'appellant'):
+                win_side = 1
+            elif fpl.lower() in ('respondent', 'appellee'):
+                win_side = 0
+            else:
+                win_side = 2
+        elif sp and majority == sp:
+            if spl.lower() in ('petitioner', 'appellant'):
+                win_side = 1
+            elif spl.lower() in ('respondent', 'appellee'):
+                win_side = 0
+            else:
+                win_side = 2
+        else:
+            win_side = 2  # winning party doesn't match either party name
+
+    # Convert votes from majority/minority to petitioner/respondent side
+    # If a justice voted "majority" and petitioner won (win_side=1), they voted Petitioner
+    votes_with_side = []
+    for v in votes:
+        name = v.get('name', '')
+        vote = v.get('vote', '')
+        if win_side == 1:
+            side = 'Petitioner' if vote == 'majority' else 'Respondent'
+        elif win_side == 0:
+            side = 'Respondent' if vote == 'majority' else 'Petitioner'
+        else:
+            side = 'Unknown'
+        votes_with_side.append({'name': name, 'side': side})
 
     return {
         'name': case['name'],
         'main_url': url,
         'year': case['year'],
         'transcript_url': transcript_url,
-        'petitioners': petitioners,
+        'advocates': advocates,
         'facts': facts,
         'question': question,
-        'votes': votes,
+        'votes': votes_with_side,
+        'win_side': win_side,
         'majority': majority,
         'parties': parties,
     }
@@ -159,6 +204,28 @@ else:
         if case['name'] not in existing_case_names and case['name'] not in bad_case_names
     ]
 
+# Shuffle so each run picks different cases (useful when debugging a single case)
+random.shuffle(cases_to_process)
+
+# If nothing new to process, pick a random already-processed case to refresh
+if not cases_to_process and main:
+    refresh_case = random.choice(cases)
+    # Find the matching source case from cases list
+    print(f"Nothing to process. Refreshing random case: {refresh_case['name']}")
+    try:
+        case_data = get_basic(refresh_case)
+        if case_data is not None:
+            # Replace the existing entry (don't duplicate)
+            main = [c for c in main if c.get('name') != refresh_case['name']]
+            main.append(case_data)
+            with open(os.path.join(DATA_DIR, 'basic.json'), 'w') as file:
+                json.dump(main, file)
+            print(f"Refreshed case: {refresh_case['name']}")
+        else:
+            print(f"Refresh returned None for: {refresh_case['name']}")
+    except Exception as e:
+        print(f"Error refreshing case {refresh_case['name']}: {e}")
+
 print(
     f"Total cases: {len(cases)}, Already processed: {len(existing_case_names)}, "
     f"Bad cases: {len(bad_case_names)}, To process: {len(cases_to_process)}, "
@@ -179,6 +246,14 @@ for case in tqdm(cases_to_process, desc="Processing cases"):
 
             with open(os.path.join(DATA_DIR, 'basic.json'), 'w') as file:
                 json.dump(main, file)
+        else:
+            # Track cases that returned None (vacated/remanded, API failure, etc.)
+            print(f"Case returned None, adding to bad_cases: {case['name']}")
+            if case['name'] not in bad_case_names:
+                bad_cases.append(case)
+                bad_case_names.add(case['name'])
+            with open(os.path.join(DATA_DIR, 'bad_cases.json'), 'w') as file:
+                json.dump(bad_cases, file)
     except requests.RequestException as e:
         print(f"Request failed for case {case['name']}: {e}")
         if case['name'] not in bad_case_names:

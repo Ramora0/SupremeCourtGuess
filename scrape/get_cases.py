@@ -35,10 +35,10 @@ def get_case_links():
         existing = []
 
     # Keep only cases outside the range we will fetch from API
-    want_terms = {str(y) for y in range(2019, 2026)}
+    want_terms = {str(y) for y in range(1955, 2026)}
     cases = [c for c in existing if isinstance(c, dict) and str(c.get('year', '')) not in want_terms]
 
-    # Paginate API and collect cases for 2019-2025
+    # Paginate API and collect cases for 1955-2025
     per_page = 100
     page = 0
     seen_ids = set()

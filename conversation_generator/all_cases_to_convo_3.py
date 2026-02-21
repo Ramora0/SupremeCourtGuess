@@ -77,13 +77,13 @@ def _build_speaker_to_label(convo):
 def _speaker_to_label(convo, utt, speaker_to_label):
     """Resolve utterance speaker to label (Respondent, Petitioner, or judge last name)."""
     if utt.speaker is None:
-        return "Petitioner"
+        return "Unknown"
     sid = utt.speaker.id
     if sid in speaker_to_label:
         return speaker_to_label[sid]
     if sid in (convo.meta.get("votes_side") or {}):
         return _speaker_last_name(convo, sid)
-    return "Petitioner"
+    return "Unknown"
 
 
 def _build_justice_votes(convo):
