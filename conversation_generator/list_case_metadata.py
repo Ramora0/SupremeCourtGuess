@@ -3,6 +3,11 @@
 List all available metadata for one Supreme Court case from the ConvoKit corpus.
 Use this to see what data exists and which ConvoKit APIs to use.
 
+Case legal info (case name, citation, decision date) for corpus cases (1940–2019)
+comes from ConvoKit's cases.jsonl (same dataset, separate file). See
+conversation_generator/corpus_case_info.py. Facts and question presented are
+not in the ConvoKit corpus or cases.jsonl.
+
 Memory: ConvoKit loads the entire corpus into RAM (all cases, utterances with
 full text, and speakers). To use less memory, set MAX_UTTERANCES (e.g. 50000)
 to load only the first N lines of utterances.jsonl; you'll get a subset of
@@ -12,6 +17,8 @@ cases and lower RAM use.
 from convokit import Corpus, download
 import json
 import os
+
+from corpus_case_info import get_case_legal_info_from_corpus
 
 # Load only first N utterance lines to reduce memory (default: load full corpus)
 MAX_UTTERANCES = int(os.environ.get("MAX_UTTERANCES", 0)) or None  # e.g. 50000
@@ -45,6 +52,45 @@ def safe_dump(obj, max_len=2000):
 
 def main():
     path = download("supreme-corpus")
+
+    # --- Exhaustive: what files exist in the corpus directory ---
+    print("=" * 60)
+    print("CORPUS DIRECTORY (files on disk)")
+    print("=" * 60)
+    print(f"Path: {path}\n")
+    if os.path.isdir(path):
+        for f in sorted(os.listdir(path)):
+            fp = os.path.join(path, f)
+            if os.path.isfile(fp):
+                size = os.path.getsize(fp)
+                size_mb = size / (1024 * 1024)
+                print(f"  {f:<25} {size_mb:>8.1f} MB")
+        # index.json describes the schema of meta/vectors
+        index_path = os.path.join(path, "index.json")
+        if os.path.isfile(index_path):
+            print("\n--- index.json (schema of meta/vector keys) ---")
+            with open(index_path) as f:
+                index = json.load(f)
+            for k, v in sorted(index.items()):
+                if k == "version":
+                    print(f"  {k}: {v}")
+                elif isinstance(v, dict):
+                    print(f"  {k}:")
+                    for kk, vv in sorted(v.items()):
+                        print(f"    {kk}: {vv}")
+        # Note on info.*.jsonl (annotation/vector data)
+        info_files = [f for f in os.listdir(path) if f.startswith("info.") and f.endswith(".jsonl")]
+        if info_files:
+            print("\n--- Annotation / vector files (info.*.jsonl) ---")
+            print("  These are loaded as corpus/utterance vectors when using preload_vectors.")
+            for f in sorted(info_files):
+                name = f.replace("info.", "").replace(".jsonl", "")
+                print(f"  {f}  ->  vector name: '{name}'")
+            print("  Example: Corpus(filename=path, preload_vectors=['parsed', 'tokens', 'arcs'])")
+    else:
+        print("  (directory not found)")
+    print()
+
     if MAX_UTTERANCES:
         print(f"Loading ConvoKit Supreme Court corpus (first {MAX_UTTERANCES} utterances, low-memory)...")
         corpus = Corpus(
@@ -89,6 +135,23 @@ def main():
             print(f"  {k}: {safe_dump(v, max_len=800)}")
     else:
         print("  (empty)")
+
+    # Case-level legal info from ConvoKit cases.jsonl (same dataset as corpus, 1940–2019)
+    convokit_case_id = (convo.meta or {}).get("case_id") or convo.id
+    legal = get_case_legal_info_from_corpus(str(convokit_case_id))
+    print("\n--- Case legal info (from ConvoKit cases.jsonl) ---")
+    if legal:
+        print("  Source: ConvoKit cases.jsonl (see corpus_case_info.py).")
+        print(f"  title (case name): {safe_dump(legal.get('title'), max_len=400)}")
+        print(f"  citation: {safe_dump(legal.get('citation'), max_len=200)}")
+        print(f"  decided_date: {safe_dump(legal.get('decided_date'), max_len=100)}")
+        print(f"  petitioner: {safe_dump(legal.get('petitioner'), max_len=200)}")
+        print(f"  respondent: {safe_dump(legal.get('respondent'), max_len=200)}")
+        if legal.get("url"):
+            print(f"  url: {legal['url']}")
+        print("  Note: facts and question presented are not in the ConvoKit dataset.")
+    else:
+        print("  Not found. Ensure data/convokit_cases.jsonl exists (run corpus_case_info.download_cases_jsonl()).")
 
     utt_ids = convo.get_utterance_ids()
     print(f"\nUtterance count: {len(utt_ids)}")
