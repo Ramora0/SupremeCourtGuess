@@ -10,16 +10,17 @@ import sys
 import time
 
 import numpy as np
+from tqdm import tqdm
 from transformers import AutoTokenizer
 
 # ── Config (mirrors lees-branch train.py) ─────────────────────────────────────
 
 MODEL_NAME = "Qwen/Qwen2.5-7B"
 TOKENS_PER_10S = 16_000  # training throughput estimate
+MAX_USABLE_TOKENS = 15_000  # examples above this are discarded
 
 DATA_DIRS = [
-    "case_transcripts",
-    "data/transcripts",
+    "case_transcripts"
 ]
 
 
@@ -45,25 +46,33 @@ def collect_txt_files(dirs: list[str]) -> list[str]:
 # ── Tokenize ──────────────────────────────────────────────────────────────────
 
 
-def tokenize_files(paths: list[str], tokenizer) -> dict:
-    """Tokenize each file and return per-file token counts + metadata."""
-    token_counts = []
+def tokenize_files(paths: list[str], tokenizer, batch_size: int = 256) -> dict:
+    """Tokenize files in batches for speed."""
+    # Read all files first
+    texts = []
     char_counts = []
     filenames = []
     skipped = 0
 
-    for i, path in enumerate(paths):
-        if (i + 1) % 500 == 0 or i == 0:
-            print(f"  Tokenizing {i + 1:,}/{len(paths):,} ...")
+    print("  Reading files ...")
+    for path in paths:
         with open(path) as f:
             text = f.read()
         if not text.strip():
             skipped += 1
             continue
-        ids = tokenizer.encode(text, add_special_tokens=False)
-        token_counts.append(len(ids))
+        texts.append(text)
         char_counts.append(len(text))
         filenames.append(os.path.basename(path))
+
+    # Batch tokenize
+    token_counts = []
+    for i in tqdm(range(0, len(texts), batch_size), desc="Tokenizing",
+                  unit="batch"):
+        batch = texts[i : i + batch_size]
+        encoded = tokenizer(batch, add_special_tokens=False,
+                            return_attention_mask=False)
+        token_counts.extend(len(ids) for ids in encoded["input_ids"])
 
     print(f"  Tokenized {len(token_counts):,} files ({skipped} empty/skipped)")
     return {
@@ -116,164 +125,153 @@ def fmt_time(seconds: float) -> str:
 
 def build_dashboard(stats: dict, token_counts: np.ndarray, char_counts: np.ndarray,
                     filenames: list[str]):
-    """Build a massive matplotlib figure with all the stats."""
+    """Build a matplotlib figure with tokenization stats."""
     import matplotlib.pyplot as plt
     from matplotlib.gridspec import GridSpec
 
-    total_tokens = stats["total"]
-    est_seconds = total_tokens / TOKENS_PER_10S * 10
-    est_per_epoch = fmt_time(est_seconds)
-    est_3_epochs = fmt_time(est_seconds * 3)
+    # Discard stats
+    n_discard = int(np.sum(token_counts > MAX_USABLE_TOKENS))
+    pct_discard = n_discard / len(token_counts) * 100
+    tokens_discarded = int(token_counts[token_counts > MAX_USABLE_TOKENS].sum())
+    kept_counts = token_counts[token_counts <= MAX_USABLE_TOKENS]
+    kept_total = int(kept_counts.sum())
 
-    fig = plt.figure(figsize=(22, 16))
+    total_tokens = stats["total"]
+    est_all_sec = total_tokens / TOKENS_PER_10S * 10
+    est_kept_sec = kept_total / TOKENS_PER_10S * 10
+
+    fig = plt.figure(figsize=(18, 9))
     fig.suptitle(
         "Supreme Court Transcript — Tokenization Analysis\n"
         f"(Qwen2.5-7B tokenizer  ·  {stats['count']:,} files)",
-        fontsize=16,
+        fontsize=14,
         fontweight="bold",
         y=0.99,
     )
-    gs = GridSpec(4, 4, figure=fig, hspace=0.45, wspace=0.35)
+    gs = GridSpec(3, 4, figure=fig, hspace=0.55, wspace=0.35,
+                  height_ratios=[0.8, 2, 2])
+
+    # ── 0. TRAINING TIME BANNER (top row, full width) ─────────────────────
+    ax0 = fig.add_subplot(gs[0, :])
+    ax0.axis("off")
+    ax0.set_xlim(0, 1)
+    ax0.set_ylim(0, 1)
+
+    # Big background box
+    from matplotlib.patches import FancyBboxPatch
+    bg = FancyBboxPatch((0.02, 0.05), 0.96, 0.90, boxstyle="round,pad=0.02",
+                        facecolor="#1a1a2e", edgecolor="#16213e", linewidth=2)
+    ax0.add_patch(bg)
+
+    ax0.text(0.5, 0.82, "ESTIMATED TRAINING TIME", ha="center", va="center",
+             fontsize=14, fontweight="bold", color="#aaa", family="monospace")
+
+    # All files
+    ax0.text(0.25, 0.55, "ALL FILES", ha="center", va="center",
+             fontsize=10, color="#888", fontweight="bold")
+    ax0.text(0.25, 0.32, f"1 epoch: {fmt_time(est_all_sec)}",
+             ha="center", va="center", fontsize=18, fontweight="bold", color="#e0e0e0")
+    ax0.text(0.25, 0.13, f"3 epochs: {fmt_time(est_all_sec * 3)}",
+             ha="center", va="center", fontsize=14, color="#999")
+
+    # Separator
+    ax0.plot([0.5, 0.5], [0.12, 0.72], color="#444", lw=1.5, ls="--")
+
+    # Kept files only
+    ax0.text(0.75, 0.55, f"KEPT ONLY (<{MAX_USABLE_TOKENS:,} tok)", ha="center",
+             va="center", fontsize=10, color="#888", fontweight="bold")
+    ax0.text(0.75, 0.32, f"1 epoch: {fmt_time(est_kept_sec)}",
+             ha="center", va="center", fontsize=18, fontweight="bold", color="#4fc3f7")
+    ax0.text(0.75, 0.13, f"3 epochs: {fmt_time(est_kept_sec * 3)}",
+             ha="center", va="center", fontsize=14, color="#81d4fa")
+
+    # Rate annotation
+    ax0.text(0.5, 0.02, f"@ {TOKENS_PER_10S:,} tokens / 10s",
+             ha="center", va="center", fontsize=9, color="#666", style="italic")
 
     # ── 1. Histogram of token counts ──────────────────────────────────────
-    ax1 = fig.add_subplot(gs[0, 0:2])
+    ax1 = fig.add_subplot(gs[1, 0:2])
     n_bins = min(100, max(30, stats["count"] // 50))
     ax1.hist(token_counts, bins=n_bins, color="#4C72B0", edgecolor="black",
              linewidth=0.3, alpha=0.85)
     ax1.axvline(stats["mean"], color="red", ls="--", lw=1.5, label=f"Mean: {stats['mean']:,.0f}")
     ax1.axvline(stats["median"], color="orange", ls="--", lw=1.5, label=f"Median: {stats['median']:,.0f}")
+    ax1.axvline(MAX_USABLE_TOKENS, color="black", ls="-", lw=2,
+                label=f"Cutoff: {MAX_USABLE_TOKENS:,} ({pct_discard:.1f}% discarded)")
+    ax1.axvspan(MAX_USABLE_TOKENS, token_counts.max() * 1.02, alpha=0.15, color="red")
     ax1.set_title("Token Count Distribution", fontweight="bold")
     ax1.set_xlabel("Tokens per file")
     ax1.set_ylabel("Count")
     ax1.legend(fontsize=8)
 
-    # ── 2. Log-scale histogram ────────────────────────────────────────────
-    ax2 = fig.add_subplot(gs[0, 2:4])
-    log_bins = np.logspace(np.log10(max(1, token_counts.min())),
-                           np.log10(token_counts.max()), n_bins)
-    ax2.hist(token_counts, bins=log_bins, color="#55A868", edgecolor="black",
-             linewidth=0.3, alpha=0.85)
-    ax2.set_xscale("log")
-    ax2.axvline(stats["mean"], color="red", ls="--", lw=1.5, label=f"Mean: {stats['mean']:,.0f}")
-    ax2.axvline(stats["median"], color="orange", ls="--", lw=1.5, label=f"Median: {stats['median']:,.0f}")
-    ax2.set_title("Token Count Distribution (Log Scale)", fontweight="bold")
-    ax2.set_xlabel("Tokens per file (log)")
-    ax2.set_ylabel("Count")
-    ax2.legend(fontsize=8)
-
-    # ── 3. Box plot ───────────────────────────────────────────────────────
-    ax3 = fig.add_subplot(gs[1, 0])
-    bp = ax3.boxplot(token_counts, vert=True, patch_artist=True,
-                     boxprops=dict(facecolor="#C44E52", alpha=0.7),
-                     medianprops=dict(color="black", lw=2))
-    ax3.set_title("Box Plot", fontweight="bold")
-    ax3.set_ylabel("Tokens")
-    ax3.set_xticks([])
-
-    # ── 4. Violin plot ────────────────────────────────────────────────────
-    ax4 = fig.add_subplot(gs[1, 1])
-    vp = ax4.violinplot(token_counts, showmeans=True, showmedians=True,
-                        showextrema=True)
-    for body in vp["bodies"]:
-        body.set_facecolor("#8172B2")
-        body.set_alpha(0.7)
-    ax4.set_title("Violin Plot", fontweight="bold")
-    ax4.set_ylabel("Tokens")
-    ax4.set_xticks([])
-
-    # ── 5. CDF ────────────────────────────────────────────────────────────
-    ax5 = fig.add_subplot(gs[1, 2:4])
-    sorted_tokens = np.sort(token_counts)
-    cdf = np.arange(1, len(sorted_tokens) + 1) / len(sorted_tokens)
-    ax5.plot(sorted_tokens, cdf, color="#4C72B0", lw=2)
-    # Mark percentiles
-    for pct, color, label in [
-        (50, "orange", "P50"), (75, "green", "P75"),
-        (90, "red", "P90"), (95, "purple", "P95"),
-    ]:
-        val = np.percentile(token_counts, pct)
-        ax5.axvline(val, color=color, ls=":", lw=1.2, alpha=0.8)
-        ax5.axhline(pct / 100, color=color, ls=":", lw=0.8, alpha=0.4)
-        ax5.annotate(f"{label}: {val:,.0f}", xy=(val, pct / 100),
-                     fontsize=7, color=color,
-                     xytext=(5, 5), textcoords="offset points")
-    ax5.set_title("Cumulative Distribution Function (CDF)", fontweight="bold")
-    ax5.set_xlabel("Tokens")
-    ax5.set_ylabel("Cumulative Proportion")
-    ax5.grid(True, alpha=0.3)
-
-    # ── 6. Tokens vs Characters scatter ───────────────────────────────────
-    ax6 = fig.add_subplot(gs[2, 0:2])
-    ax6.scatter(char_counts, token_counts, s=3, alpha=0.3, color="#4C72B0")
-    # Fit line
-    z = np.polyfit(char_counts, token_counts, 1)
-    p = np.poly1d(z)
-    x_line = np.linspace(char_counts.min(), char_counts.max(), 100)
-    ax6.plot(x_line, p(x_line), "r--", lw=1.5,
-             label=f"Fit: {z[0]:.3f}x + {z[1]:.0f}")
-    avg_ratio = token_counts.sum() / char_counts.sum()
-    ax6.set_title(f"Tokens vs Characters  (avg ratio: {avg_ratio:.3f} tok/char)",
-                  fontweight="bold")
-    ax6.set_xlabel("Characters")
-    ax6.set_ylabel("Tokens")
-    ax6.legend(fontsize=8)
-    ax6.grid(True, alpha=0.3)
-
-    # ── 7. Top 20 longest files ───────────────────────────────────────────
-    ax7 = fig.add_subplot(gs[2, 2:4])
+    # ── 2. Top 20 longest files ───────────────────────────────────────────
+    ax2 = fig.add_subplot(gs[1, 2:4])
     top_idx = np.argsort(token_counts)[::-1][:20]
     top_tokens = token_counts[top_idx]
     top_labels = [os.path.splitext(filenames[i])[0] for i in top_idx]
-    bars = ax7.barh(range(len(top_tokens)), top_tokens, color="#DD8452",
+    bar_colors = ["#C44E52" if v > MAX_USABLE_TOKENS else "#DD8452"
+                  for v in top_tokens]
+    bars = ax2.barh(range(len(top_tokens)), top_tokens, color=bar_colors,
                     edgecolor="black", linewidth=0.3)
-    ax7.set_yticks(range(len(top_tokens)))
-    ax7.set_yticklabels(top_labels, fontsize=8)
-    ax7.invert_yaxis()
-    ax7.set_title("Top 20 Longest Files (by tokens)", fontweight="bold")
-    ax7.set_xlabel("Tokens")
+    ax2.axvline(MAX_USABLE_TOKENS, color="black", ls="-", lw=2, label=f"Cutoff: {MAX_USABLE_TOKENS:,}")
+    ax2.set_yticks(range(len(top_tokens)))
+    ax2.set_yticklabels(top_labels, fontsize=8)
+    ax2.invert_yaxis()
+    ax2.set_title("Top 20 Longest Files (red = discarded)", fontweight="bold")
+    ax2.set_xlabel("Tokens")
+    ax2.legend(fontsize=8)
     for i, (bar, val) in enumerate(zip(bars, top_tokens)):
-        ax7.text(val + token_counts.max() * 0.01, i, f"{val:,}", va="center", fontsize=7)
+        ax2.text(val + token_counts.max() * 0.01, i, f"{val:,}", va="center", fontsize=7)
 
-    # ── 8. Percentile breakdown bar chart ─────────────────────────────────
-    ax8 = fig.add_subplot(gs[3, 0:2])
-    pct_labels = ["P5", "P10", "Q1\n(P25)", "Median\n(P50)", "Q3\n(P75)", "P90", "P95", "P99"]
-    pct_values = [stats["p5"], stats["p10"], stats["q1"], stats["q2"],
-                  stats["q3"], stats["p90"], stats["p95"], stats["p99"]]
-    colors = plt.cm.RdYlGn_r(np.linspace(0.15, 0.85, len(pct_labels)))
-    bars8 = ax8.bar(pct_labels, pct_values, color=colors, edgecolor="black", linewidth=0.3)
-    for bar, val in zip(bars8, pct_values):
-        ax8.text(bar.get_x() + bar.get_width() / 2, val + token_counts.max() * 0.01,
-                 f"{val:,.0f}", ha="center", va="bottom", fontsize=7, fontweight="bold")
-    ax8.set_title("Percentile / Quartile Breakdown", fontweight="bold")
-    ax8.set_ylabel("Tokens")
-    ax8.grid(axis="y", alpha=0.3)
+    # ── 3. Cases by year ────────────────────────────────────────────────
+    ax3 = fig.add_subplot(gs[2, 0:2])
+    years = [os.path.splitext(f)[0].split("_")[0] for f in filenames]
+    unique_years = sorted(set(years))
+    year_counts = [years.count(y) for y in unique_years]
+    # Color bars by mean token count per year
+    year_mean_tokens = []
+    for y in unique_years:
+        mask = np.array([yr == y for yr in years])
+        year_mean_tokens.append(token_counts[mask].mean())
+    norm = plt.Normalize(vmin=min(year_mean_tokens), vmax=max(year_mean_tokens))
+    bar_colors = plt.cm.RdYlGn_r(norm(year_mean_tokens))
+    ax3.bar(unique_years, year_counts, color=bar_colors, edgecolor="black", linewidth=0.3)
+    # Show every Nth label to avoid crowding
+    step = max(1, len(unique_years) // 15)
+    ax3.set_xticks(unique_years[::step])
+    ax3.tick_params(axis="x", rotation=45, labelsize=7)
+    ax3.set_title("Cases by Year (color = mean tokens)", fontweight="bold")
+    ax3.set_xlabel("Year")
+    ax3.set_ylabel("Number of Cases")
+    ax3.grid(axis="y", alpha=0.3)
 
-    # ── 9. Summary statistics table ───────────────────────────────────────
-    ax9 = fig.add_subplot(gs[3, 2:4])
-    ax9.axis("off")
+    # ── 4. Summary statistics table ───────────────────────────────────────
+    ax4 = fig.add_subplot(gs[2, 2:4])
+    ax4.axis("off")
 
     table_data = [
         ["Total Files", f"{stats['count']:,}"],
-        ["Total Tokens", f"{stats['total']:,}"],
+        ["Total Tokens (all)", f"{stats['total']:,}"],
         ["Mean", f"{stats['mean']:,.1f}"],
         ["Std Dev", f"{stats['std']:,.1f}"],
         ["Median", f"{stats['median']:,.1f}"],
         ["Min", f"{stats['min']:,}"],
         ["Max", f"{stats['max']:,}"],
-        ["Range", f"{stats['range']:,}"],
         ["IQR (Q3-Q1)", f"{stats['iqr']:,.1f}"],
         ["Q1 (25th)", f"{stats['q1']:,.1f}"],
         ["Q3 (75th)", f"{stats['q3']:,.1f}"],
         ["P95", f"{stats['p95']:,.1f}"],
         ["P99", f"{stats['p99']:,.1f}"],
         ["", ""],
-        ["Training Estimate", f"@ {TOKENS_PER_10S:,} tok/10s"],
-        ["Est. 1 Epoch", est_per_epoch],
-        ["Est. 3 Epochs", est_3_epochs],
-        ["Tokens/Char Ratio", f"{token_counts.sum() / char_counts.sum():.4f}"],
+        [f"Cutoff", f"{MAX_USABLE_TOKENS:,} tokens"],
+        ["Discarded Files", f"{n_discard:,} / {stats['count']:,}"],
+        ["% Discarded", f"{pct_discard:.2f}%"],
+        ["Tokens Discarded", f"{tokens_discarded:,}"],
+        ["Kept Files", f"{stats['count'] - n_discard:,}"],
+        ["Kept Tokens", f"{kept_total:,}"],
     ]
 
-    table = ax9.table(
+    table = ax4.table(
         cellText=table_data,
         colLabels=["Metric", "Value"],
         cellLoc="center",
@@ -282,7 +280,7 @@ def build_dashboard(stats: dict, token_counts: np.ndarray, char_counts: np.ndarr
     )
     table.auto_set_font_size(False)
     table.set_fontsize(9)
-    table.scale(1, 1.35)
+    table.scale(1, 1.2)
 
     # Style header
     for j in range(2):
@@ -295,12 +293,12 @@ def build_dashboard(stats: dict, token_counts: np.ndarray, char_counts: np.ndarr
                 table[i, j].set_facecolor("#f0f0f0")
             else:
                 table[i, j].set_facecolor("#ffffff")
-    # Highlight training rows
-    for i in range(15, 18):
+    # Highlight discard rows in red
+    for i in range(14, len(table_data) + 1):
         for j in range(2):
-            table[i, j].set_facecolor("#fff3cd")
+            table[i, j].set_facecolor("#fdd")
 
-    ax9.set_title("Summary Statistics & Training Estimates", fontweight="bold",
+    ax4.set_title("Summary Statistics & Training Estimates", fontweight="bold",
                   pad=15)
 
     plt.savefig("tokenization_stats.png", dpi=150, bbox_inches="tight")
@@ -353,12 +351,20 @@ def main():
     print(f"  IQR:         {stats['iqr']:>10,.1f}")
     print(f"  P95:         {stats['p95']:>10,.1f}")
     print(f"  P99:         {stats['p99']:>10,.1f}")
-    total_tokens = stats["total"]
-    est_sec = total_tokens / TOKENS_PER_10S * 10
+    n_discard = int(np.sum(token_counts > MAX_USABLE_TOKENS))
+    pct_discard = n_discard / len(token_counts) * 100
+    kept_total = int(token_counts[token_counts <= MAX_USABLE_TOKENS].sum())
+    est_all_sec = stats["total"] / TOKENS_PER_10S * 10
+    est_kept_sec = kept_total / TOKENS_PER_10S * 10
+    print(f"{'─' * 50}")
+    print(f"  Cutoff:      {MAX_USABLE_TOKENS:>10,} tokens")
+    print(f"  Discarded:   {n_discard:>10,} files ({pct_discard:.2f}%)")
+    print(f"  Kept files:  {stats['count'] - n_discard:>10,}")
+    print(f"  Kept tokens: {kept_total:>10,}")
     print(f"{'─' * 50}")
     print(f"  Training estimate @ {TOKENS_PER_10S:,} tok / 10s:")
-    print(f"    1 epoch:   {fmt_time(est_sec)}")
-    print(f"    3 epochs:  {fmt_time(est_sec * 3)}")
+    print(f"    ALL FILES:  1 epoch = {fmt_time(est_all_sec)},  3 epochs = {fmt_time(est_all_sec * 3)}")
+    print(f"    KEPT ONLY:  1 epoch = {fmt_time(est_kept_sec)},  3 epochs = {fmt_time(est_kept_sec * 3)}")
     print(f"{'─' * 50}")
 
     print(f"\nBuilding dashboard ...")

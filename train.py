@@ -1,7 +1,8 @@
-"""LoRA fine-tuning of Qwen2.5-7B for SCOTUS vote prediction."""
+"""QLoRA fine-tuning of Qwen2.5-7B for SCOTUS vote prediction."""
 
 import glob
 import os
+import re
 
 import torch
 from datasets import Dataset
@@ -33,10 +34,12 @@ LEARNING_RATE = 2e-4
 NUM_EPOCHS = 3
 WARMUP_RATIO = 0.05
 
-DATA_DIR = "data/transcripts"
+DATA_DIR = "data/case_transcripts"
+MAX_TOKENS_DISCARD = 15000
 OUTPUT_DIR = "output/scotus-lora"
 
 VOTES_TAG = "<votes>"
+EVAL_YEAR = "2025"
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -69,10 +72,31 @@ def load_transcripts(data_dir: str) -> list[dict]:
             print(f"Warning: skipping {path} — empty completion")
             continue
 
-        samples.append({"prompt": prompt, "completion": completion})
+        filename = os.path.basename(path)
+        samples.append({
+            "prompt": prompt,
+            "completion": completion,
+            "filename": filename,
+        })
 
     print(f"Loaded {len(samples)} samples from {data_dir}")
     return samples
+
+
+def split_by_year(
+    samples: list[dict], eval_year: str
+) -> tuple[list[dict], list[dict]]:
+    """Split samples into train/eval based on filename year prefix."""
+    train_samples = []
+    eval_samples = []
+    for s in samples:
+        if s["filename"].startswith(eval_year):
+            eval_samples.append(s)
+        else:
+            train_samples.append(s)
+    print(f"Year split: {len(train_samples)} train, "
+          f"{len(eval_samples)} eval (year={eval_year})")
+    return train_samples, eval_samples
 
 
 # ── Tokenization ──────────────────────────────────────────────────────────────
@@ -117,26 +141,93 @@ def tokenize_sample(
     }
 
 
-def prepare_dataset(
-    samples: list[dict], tokenizer, max_length: int
-) -> tuple[Dataset, Dataset]:
-    """Tokenize all samples and return train/eval datasets (90/10 split)."""
+def tokenize_and_filter(
+    samples: list[dict], tokenizer, max_length: int, label: str
+) -> list[dict]:
+    """Tokenize samples, print lengths, discard those exceeding MAX_TOKENS_DISCARD."""
     tokenized = [tokenize_sample(s, tokenizer, max_length) for s in samples]
 
     lengths = sorted([len(t["input_ids"]) for t in tokenized], reverse=True)
-    print(f"\n── Token lengths ({len(lengths)} samples) ──")
+    print(f"\n── Token lengths: {label} ({len(lengths)} samples) ──")
     for i, l in enumerate(lengths):
         print(f"  {i+1:3d}. {l:,} tokens")
     print(f"  Max: {max(lengths):,}  Min: {min(lengths):,}  "
           f"Mean: {sum(lengths)//len(lengths):,}")
-    print()
 
-    dataset = Dataset.from_list(tokenized)
-    split = dataset.train_test_split(test_size=0.1, seed=42)
-    print(
-        f"Split: {len(split['train'])} train, {len(split['test'])} eval samples"
-    )
-    return split["train"], split["test"]
+    before = len(tokenized)
+    tokenized = [t for t in tokenized if len(t["input_ids"]) <= MAX_TOKENS_DISCARD]
+    if len(tokenized) < before:
+        print(f"  Discarded {before - len(tokenized)} samples exceeding "
+              f"{MAX_TOKENS_DISCARD:,} tokens")
+    print()
+    return tokenized
+
+
+# ── Vote parsing & scoring ────────────────────────────────────────────────────
+
+
+def parse_votes(text: str) -> dict[str, str]:
+    """Parse vote lines into {justice_last_name: side} dict.
+
+    Expects lines like: "Roberts voted for the petitioner"
+    """
+    votes = {}
+    for line in text.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = re.match(
+            r"(\w+)\s+voted\s+for\s+the\s+(petitioner|respondent)",
+            line,
+            re.IGNORECASE,
+        )
+        if m:
+            justice = m.group(1).capitalize()
+            side = m.group(2).lower()
+            votes[justice] = side
+    return votes
+
+
+def case_result(votes: dict[str, str]) -> str | None:
+    """Determine case winner by majority vote. Returns 'petitioner' or 'respondent'."""
+    if not votes:
+        return None
+    pet = sum(1 for v in votes.values() if v == "petitioner")
+    resp = sum(1 for v in votes.values() if v == "respondent")
+    if pet > resp:
+        return "petitioner"
+    elif resp > pet:
+        return "respondent"
+    return None
+
+
+def score_predictions(
+    predicted_text: str, ground_truth_text: str
+) -> dict:
+    """Compare predicted votes against ground truth.
+
+    Returns per-justice correctness and case result correctness.
+    """
+    pred_votes = parse_votes(predicted_text)
+    true_votes = parse_votes(ground_truth_text)
+
+    justice_results = {}
+    for justice, true_side in true_votes.items():
+        if justice in pred_votes:
+            justice_results[justice] = pred_votes[justice] == true_side
+        else:
+            justice_results[justice] = None  # missing
+
+    pred_result = case_result(pred_votes)
+    true_result = case_result(true_votes)
+    case_correct = pred_result == true_result if true_result else None
+
+    return {
+        "justice_results": justice_results,
+        "case_correct": case_correct,
+        "pred_votes": pred_votes,
+        "true_votes": true_votes,
+    }
 
 
 # ── Model setup ───────────────────────────────────────────────────────────────
@@ -177,14 +268,113 @@ def setup_model_and_tokenizer():
     return model, tokenizer
 
 
+# ── Evaluation ────────────────────────────────────────────────────────────────
+
+
+def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
+    """Generate vote predictions for eval samples and score them."""
+    model.eval()
+    model.config.use_cache = True
+
+    all_justice_results = {}  # justice -> list of bool
+    case_results = []
+
+    print(f"\n── Generating predictions for {len(eval_samples)} eval cases ──\n")
+
+    for i, sample in enumerate(eval_samples):
+        prompt_ids = tokenizer.encode(sample["prompt"], return_tensors="pt")
+
+        # Left-truncate prompt to fit in context
+        if prompt_ids.shape[1] > MAX_SEQ_LENGTH - 256:
+            prompt_ids = prompt_ids[:, -(MAX_SEQ_LENGTH - 256):]
+
+        prompt_ids = prompt_ids.to(model.device)
+
+        with torch.no_grad():
+            output_ids = model.generate(
+                input_ids=prompt_ids,
+                max_new_tokens=256,
+                do_sample=False,
+                temperature=1.0,
+            )
+
+        # Decode only the new tokens
+        generated_ids = output_ids[0, prompt_ids.shape[1]:]
+        generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+
+        scores = score_predictions(generated_text, sample["completion"])
+
+        # Print per-case results
+        filename = sample.get("filename", f"case_{i}")
+        print(f"  Case: {filename}")
+        print(f"    Predicted: {scores['pred_votes']}")
+        print(f"    Truth:     {scores['true_votes']}")
+        print(f"    Case result correct: {scores['case_correct']}")
+
+        for justice, correct in scores["justice_results"].items():
+            if justice not in all_justice_results:
+                all_justice_results[justice] = []
+            all_justice_results[justice].append(correct)
+
+        if scores["case_correct"] is not None:
+            case_results.append(scores["case_correct"])
+
+        print()
+
+    # Summary
+    print("── Evaluation Summary ──\n")
+
+    print("  Justice vote accuracy:")
+    total_correct = 0
+    total_counted = 0
+    for justice in sorted(all_justice_results):
+        results = all_justice_results[justice]
+        scored = [r for r in results if r is not None]
+        if scored:
+            acc = sum(scored) / len(scored)
+            total_correct += sum(scored)
+            total_counted += len(scored)
+            missing = sum(1 for r in results if r is None)
+            extra = f" ({missing} missing)" if missing else ""
+            print(f"    {justice:15s}: {acc:5.1%} ({sum(scored)}/{len(scored)}){extra}")
+        else:
+            print(f"    {justice:15s}: N/A (not predicted)")
+
+    if total_counted:
+        print(f"    {'OVERALL':15s}: {total_correct/total_counted:5.1%} "
+              f"({total_correct}/{total_counted})")
+
+    print()
+    if case_results:
+        case_acc = sum(case_results) / len(case_results)
+        print(f"  Case result accuracy: {case_acc:5.1%} "
+              f"({sum(case_results)}/{len(case_results)})")
+    else:
+        print("  Case result accuracy: N/A")
+
+    model.config.use_cache = False
+    model.train()
+
+
 # ── Training ──────────────────────────────────────────────────────────────────
 
 
 def train():
     """Main training entry point."""
     model, tokenizer = setup_model_and_tokenizer()
-    samples = load_transcripts(DATA_DIR)
-    train_dataset, eval_dataset = prepare_dataset(samples, tokenizer, MAX_SEQ_LENGTH)
+
+    # Load and split by year
+    all_samples = load_transcripts(DATA_DIR)
+    train_samples, eval_samples = split_by_year(all_samples, EVAL_YEAR)
+
+    # Tokenize train set (with 90/10 split for training loss eval)
+    train_tokenized = tokenize_and_filter(
+        train_samples, tokenizer, MAX_SEQ_LENGTH, "train"
+    )
+    train_dataset = Dataset.from_list(train_tokenized)
+    split = train_dataset.train_test_split(test_size=0.1, seed=42)
+    print(f"Train split: {len(split['train'])} train, "
+          f"{len(split['test'])} loss-eval samples")
 
     data_collator = DataCollatorForSeq2Seq(
         tokenizer=tokenizer,
@@ -214,8 +404,8 @@ def train():
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        train_dataset=split["train"],
+        eval_dataset=split["test"],
         data_collator=data_collator,
     )
 
@@ -226,6 +416,12 @@ def train():
     model.save_pretrained(final_path)
     tokenizer.save_pretrained(final_path)
     print(f"Saved adapter to {final_path}")
+
+    # Run generative evaluation on held-out year
+    if eval_samples:
+        evaluate_generation(model, tokenizer, eval_samples)
+    else:
+        print(f"\nNo eval samples found for year {EVAL_YEAR}")
 
 
 if __name__ == "__main__":

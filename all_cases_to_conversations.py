@@ -13,6 +13,7 @@ import os
 import re
 import sys
 from convokit import Corpus, download
+from tqdm import tqdm
 
 MAX_UTTERANCES = int(os.environ.get("MAX_UTTERANCES", 0)) or None
 
@@ -64,7 +65,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     print(f"Writing {len(convo_ids)} cases to {out_dir}/", file=sys.stderr)
 
-    for i, case_id in enumerate(convo_ids, 1):
+    for i, case_id in tqdm(enumerate(convo_ids, 1), total=len(convo_ids), desc="Processing cases"):
         name = safe_filename(case_id)
         out_path = os.path.join(out_dir, f"{name}.txt")
         try:
