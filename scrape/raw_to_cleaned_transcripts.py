@@ -30,6 +30,20 @@ def safe_filename_from_url(url: str) -> str:
     return s or "unknown"
 
 
+def load_raw_statements(raw_path: str) -> list:
+    """
+    Load the list of {speaker, text} from a raw_cases JSON file.
+    Supports both formats: a plain list, or a dict with 'statements' (from get_transcripts).
+    """
+    with open(raw_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and 'statements' in data:
+        return data['statements'] if isinstance(data['statements'], list) else []
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Text/speaker cleaning (same logic as conversation_generator cleaned_transcript_generator)
 # ---------------------------------------------------------------------------
@@ -84,7 +98,7 @@ def clean_turn_text(text: str) -> str:
 
 
 def build_footer(case: dict) -> str:
-    """Build JUSTICE VOTES and OUTCOME from basic.json case entry."""
+    """Build JUSTICE VOTES and OUTCOME from case dict (basic.json or raw file metadata)."""
     votes = case.get('votes') or []
     lines = ["JUSTICE VOTES:"]
     if not votes:
@@ -117,14 +131,31 @@ def serialize_cleaned(turns: list[tuple[str, str]], footer: str) -> str:
     return out + "\n" if not out.endswith("\n") else out
 
 
-def convert_one(raw_path: str, case: dict, normalize_speakers: bool = True) -> str:
+def convert_one(raw_path: str, case: dict | None, normalize_speakers: bool = True) -> str:
     """
-    Read scraped JSON, clean turns, build footer from case, return cleaned text.
+    Read scraped JSON, clean turns, build footer from case or embedded metadata.
+    Raw file can be: (1) list of {speaker, text} — case must be provided;
+    (2) dict with statements, name, votes, majority — case optional (used as fallback).
     """
     with open(raw_path, 'r', encoding='utf-8') as f:
-        statements = json.load(f)
-    if not isinstance(statements, list):
-        statements = []
+        data = json.load(f)
+
+    if isinstance(data, list):
+        statements = data
+        footer_case = case or {}
+    else:
+        statements = data.get('statements') if isinstance(data, dict) else []
+        if not isinstance(statements, list):
+            statements = []
+        # Use embedded metadata when present; fall back to basic.json case
+        if isinstance(data, dict) and (data.get('votes') is not None or data.get('majority') is not None):
+            footer_case = {
+                'name': data.get('name') or (case.get('name') if case else ''),
+                'votes': data.get('votes') or [],
+                'majority': data.get('majority') or '',
+            }
+        else:
+            footer_case = case or {}
 
     turns = []
     for st in statements:
@@ -138,7 +169,7 @@ def convert_one(raw_path: str, case: dict, normalize_speakers: bool = True) -> s
         if speaker or text:
             turns.append((speaker, text))
 
-    footer = build_footer(case)
+    footer = build_footer(footer_case)
     return serialize_cleaned(turns, footer)
 
 

@@ -1,7 +1,9 @@
 """
 Fetch oral argument transcripts from the Oyez API (no Selenium).
 Uses transcript_url from basic.json (API case_media URLs from get_basic.py).
-Output: same format as before — list of {"speaker": "...", "text": "..."} in data/raw_cases/.
+Output: one JSON per case in data/raw_cases/ with all data needed for case_transcripts_cleaned:
+  - statements: list of {"speaker": "...", "text": "..."}
+  - name, votes, majority (from basic.json) for JUSTICE VOTES and OUTCOME footer.
 """
 import json
 import os
@@ -62,9 +64,11 @@ def api_transcript_to_statements(api_data: dict) -> list[dict]:
     return statements
 
 
-def get_transcript(transcript_url: str, timeout: int = 30) -> bool:
+def get_transcript(transcript_url: str, case: dict | None = None, timeout: int = 30) -> bool:
     """
     Fetch transcript from API and save as JSON in raw_cases/.
+    If case is provided (from basic.json), saves name, votes, majority so the file
+    has all data needed to generate case_transcripts_cleaned format.
     Returns True if saved, False if skipped (exists or no transcript).
     """
     file_name = safe_filename_from_url(transcript_url) + '.json'
@@ -88,9 +92,17 @@ def get_transcript(transcript_url: str, timeout: int = 30) -> bool:
     if not statements:
         return False
 
+    payload = {
+        'statements': statements,
+    }
+    if isinstance(case, dict):
+        payload['name'] = case.get('name') or ''
+        payload['votes'] = case.get('votes') or []
+        payload['majority'] = case.get('majority') or ''
+
     os.makedirs(RAW_CASES_DIR, exist_ok=True)
     with open(file_path, 'w', encoding='utf-8') as f:
-        json.dump(statements, f, ensure_ascii=False)
+        json.dump(payload, f, ensure_ascii=False)
 
     return True
 
@@ -118,7 +130,7 @@ def main():
     for case in tqdm(cases_with_transcripts, desc="Processing transcripts"):
         transcript_url = case.get('transcript_url')
         try:
-            if get_transcript(transcript_url):
+            if get_transcript(transcript_url, case=case):
                 saved += 1
             else:
                 skipped += 1
