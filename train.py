@@ -522,21 +522,32 @@ class VoteAccuracyTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         vote_mask = inputs.pop("vote_mask")
         outcome_mask = inputs.pop("outcome_mask")
+        pet_id, res_id = self._vote_token_ids
         outputs = model(**inputs)
 
-        loss = outputs.loss
+        # Binary cross-entropy over only the two vote token logits
+        # Shift: logits[i] predicts labels[i+1]
+        shifted_logits = outputs.logits[:, :-1, :]
+        shifted_labels = inputs["labels"][:, 1:]
+        shifted_vote_mask = vote_mask[:, 1:].bool()
+
+        if shifted_vote_mask.any():
+            vote_logits = shifted_logits[shifted_vote_mask][:, [pet_id, res_id]]  # (N, 2)
+            vote_labels = shifted_labels[shifted_vote_mask]
+            # Map label token IDs to binary targets: 0 = petitioner, 1 = respondent
+            binary_targets = (vote_labels == res_id).long()
+            loss = torch.nn.functional.cross_entropy(vote_logits, binary_targets)
+        else:
+            loss = outputs.loss  # fallback if no vote tokens found
 
         self._micro_step += 1
 
         with torch.no_grad():
-            # Shift: logits[i] predicts labels[i+1]
-            logits = outputs.logits[:, :-1, :]
-            labels = inputs["labels"][:, 1:]
-            probs = logits.softmax(dim=-1)
+            probs = shifted_logits.softmax(dim=-1)
 
-            v_mask = vote_mask[:, 1:].bool()
+            v_mask = shifted_vote_mask
             if v_mask.any():
-                label_ids = labels[v_mask]
+                label_ids = shifted_labels[v_mask]
                 correct_probs = probs[v_mask].gather(1, label_ids.unsqueeze(1)).squeeze(1)
                 self._vote_prob_sum += correct_probs.sum().item()
                 self._vote_total += v_mask.sum().item()
