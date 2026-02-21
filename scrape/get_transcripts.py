@@ -1,89 +1,133 @@
-
+"""
+Fetch oral argument transcripts from the Oyez API (no Selenium).
+Uses transcript_url from basic.json (API case_media URLs from get_basic.py).
+Output: same format as before — list of {"speaker": "...", "text": "..."} in data/raw_cases/.
+"""
 import json
 import os
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
+import re
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
-
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import WebDriverException, TimeoutException
+import requests
 from tqdm import tqdm
 
+DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
+RAW_CASES_DIR = os.path.join(DATA_DIR, 'raw_cases')
 
-def get_transcript(url):
-    file_path = os.path.join(DATA_DIR, 'raw_cases', f"{url.replace('/', '-')}.json")
+SESSION = requests.Session()
+SESSION.headers.update({
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json',
+})
+
+
+def safe_filename_from_url(url: str) -> str:
+    """Build a filesystem-safe filename from transcript API URL."""
+    s = url.replace('/', '-').strip()
+    s = re.sub(r'[<>:"|?*]', '_', s)
+    return s or 'unknown'
+
+
+def api_transcript_to_statements(api_data: dict) -> list[dict]:
+    """
+    Parse Oyez case_media/oral_argument_audio JSON into list of {speaker, text}.
+    Matches the format previously produced by the Selenium HTML scraper.
+    """
+    statements = []
+    transcript = api_data.get('transcript')
+    if not transcript or not isinstance(transcript, dict):
+        return statements
+
+    sections = transcript.get('sections') or []
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        for turn in (section.get('turns') or []):
+            if not isinstance(turn, dict):
+                continue
+            speaker_obj = turn.get('speaker')
+            if isinstance(speaker_obj, dict):
+                speaker = (speaker_obj.get('last_name') or speaker_obj.get('name') or '').strip()
+            else:
+                speaker = str(speaker_obj or '').strip()
+
+            text_parts = []
+            for block in (turn.get('text_blocks') or []):
+                if isinstance(block, dict) and block.get('text'):
+                    text_parts.append(block['text'].strip())
+            text = ' '.join(text_parts).strip()
+
+            if speaker or text:
+                statements.append({'speaker': speaker, 'text': text})
+
+    return statements
+
+
+def get_transcript(transcript_url: str, timeout: int = 30) -> bool:
+    """
+    Fetch transcript from API and save as JSON in raw_cases/.
+    Returns True if saved, False if skipped (exists or no transcript).
+    """
+    file_name = safe_filename_from_url(transcript_url) + '.json'
+    file_path = os.path.join(RAW_CASES_DIR, file_name)
 
     if os.path.exists(file_path):
-        # print(f"File {file_path} already exists. Skipping.")
+        return False
+
+    try:
+        r = SESSION.get(transcript_url, timeout=timeout)
+        r.raise_for_status()
+    except requests.RequestException:
+        return False
+
+    try:
+        data = r.json()
+    except json.JSONDecodeError:
+        return False
+
+    statements = api_transcript_to_statements(data)
+    if not statements:
+        return False
+
+    os.makedirs(RAW_CASES_DIR, exist_ok=True)
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(statements, f, ensure_ascii=False)
+
+    return True
+
+
+def main():
+    with open(os.path.join(DATA_DIR, 'basic.json'), 'r') as f:
+        raw = json.load(f)
+    main_list = raw if isinstance(raw, list) else []
+
+    cases_with_transcripts = [c for c in main_list if isinstance(c, dict) and c.get('transcript_url')]
+    cases_without_transcripts = [c for c in main_list if isinstance(c, dict) and not c.get('transcript_url')]
+
+    print(f"Total cases: {len(main_list)}")
+    print(f"Cases with transcript URLs: {len(cases_with_transcripts)}")
+    print(f"Cases without transcript URLs: {len(cases_without_transcripts)}")
+
+    if not cases_with_transcripts:
+        print("No cases with transcript URLs found. Exiting.")
         return
 
-    driver.get(url)
+    saved = 0
+    skipped = 0
+    failed = 0
 
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, 'section.transcript-turn.ng-scope')))
-
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
-    sections = soup.find_all("section", class_='transcript-turn ng-scope')
-
-    statements = []
-
-    for section in sections:
-        text = ' '.join([p.text for p in section.find_all('p')])
-        statements.append({
-            'speaker': (section.find('h4').text),
-            'text': (text)
-        })
-
-    with open(file_path, 'w') as file:
-        file.write(json.dumps(statements))
-
-
-with open(os.path.join(DATA_DIR, 'basic.json'), 'r') as file:
-    main = json.load(file)
-
-# Pre-filter cases that have transcript URLs
-cases_with_transcripts = []
-cases_without_transcripts = []
-
-for case in main:
-    transcript_url = case.get('transcript_url')
-    if transcript_url:
-        cases_with_transcripts.append(case)
-    else:
-        cases_without_transcripts.append(case)
-
-print(f"Total cases: {len(main)}")
-print(f"Cases with transcript URLs: {len(cases_with_transcripts)}")
-print(f"Cases without transcript URLs: {len(cases_without_transcripts)}")
-
-if not cases_with_transcripts:
-    print("No cases with transcript URLs found. Exiting.")
-    exit()
-
-chrome_options = Options()
-chrome_options.add_argument('--no-sandbox')
-chrome_options.add_argument('--disable-dev-shm-usage')
-chrome_options.add_argument('--disable-gpu')
-chrome_options.add_argument('--remote-debugging-port=9222')
-
-driver = webdriver.Chrome(options=chrome_options)
-
-for case in tqdm(cases_with_transcripts, desc="Processing transcripts"):
-    try:
+    for case in tqdm(cases_with_transcripts, desc="Processing transcripts"):
         transcript_url = case.get('transcript_url')
-        get_transcript(transcript_url)
-    except TimeoutException:
-        print(
-            f"Timeout error for URL {transcript_url}: Page took too long to load")
-    except WebDriverException as e:
-        print(f"WebDriver error for URL {transcript_url}: {e}")
-    except Exception as e:
-        print(f"Error processing case {case}: {e}")
-        break
+        try:
+            if get_transcript(transcript_url):
+                saved += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            failed += 1
+            print(f"Error for {transcript_url}: {e}")
 
-driver.quit()
+    print(f"Saved: {saved}, Skipped (existing or empty): {skipped}, Failed: {failed}")
+
+
+if __name__ == '__main__':
+    main()

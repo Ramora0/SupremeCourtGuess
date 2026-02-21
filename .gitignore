@@ -3,4 +3,5 @@ __pycache__/
 data/
 
 /case_transcripts
+/case_transcripts_cleaned
 /venv
