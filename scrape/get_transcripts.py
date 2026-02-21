@@ -2,8 +2,9 @@
 Fetch oral argument transcripts from the Oyez API (no Selenium).
 Uses transcript_url from basic.json (API case_media URLs from get_basic.py).
 Output: one JSON per case in data/raw_cases/ with all data needed for case_transcripts_cleaned:
-  - statements: list of {"speaker": "...", "text": "..."}
-  - name, votes, majority (from basic.json) for JUSTICE VOTES and OUTCOME footer.
+  - statements: list of {"speaker": "...", "text": "..."} where advocates are labeled
+    as "Petitioner"/"Respondent" and justices keep their last name.
+  - name, votes (with side: Petitioner/Respondent), win_side (1/0/2/-1) from basic.json.
 """
 import json
 import os
@@ -29,11 +30,38 @@ def safe_filename_from_url(url: str) -> str:
     return s or 'unknown'
 
 
-def api_transcript_to_statements(api_data: dict) -> list[dict]:
+def _build_advocate_label_map(case: dict | None) -> dict[str, str]:
+    """
+    Build a mapping from advocate name (lowercased) to label ('Petitioner' or 'Respondent').
+    Uses the advocates list from basic.json which has side info (1=petitioner, 0=respondent).
+    """
+    label_map = {}
+    if not case:
+        return label_map
+    for adv in (case.get('advocates') or []):
+        if not isinstance(adv, dict):
+            continue
+        name = (adv.get('name') or '').strip()
+        side = adv.get('side')
+        if not name:
+            continue
+        if side == 1:
+            label_map[name.lower()] = 'Petitioner'
+        elif side == 0:
+            label_map[name.lower()] = 'Respondent'
+        else:
+            label_map[name.lower()] = 'Unknown'
+    return label_map
+
+
+def api_transcript_to_statements(api_data: dict, advocate_labels: dict[str, str] | None = None) -> list[dict]:
     """
     Parse Oyez case_media/oral_argument_audio JSON into list of {speaker, text}.
-    Matches the format previously produced by the Selenium HTML scraper.
+    Advocates are labeled as 'Petitioner' or 'Respondent' using advocate_labels map.
+    Justices keep their last name.
     """
+    if advocate_labels is None:
+        advocate_labels = {}
     statements = []
     transcript = api_data.get('transcript')
     if not transcript or not isinstance(transcript, dict):
@@ -48,7 +76,21 @@ def api_transcript_to_statements(api_data: dict) -> list[dict]:
                 continue
             speaker_obj = turn.get('speaker')
             if isinstance(speaker_obj, dict):
-                speaker = (speaker_obj.get('last_name') or speaker_obj.get('name') or '').strip()
+                last_name = (speaker_obj.get('last_name') or '').strip()
+                full_name = (speaker_obj.get('name') or '').strip()
+                # Check if this speaker is a known advocate
+                label = None
+                for name_variant in (full_name.lower(), last_name.lower()):
+                    if name_variant and name_variant in advocate_labels:
+                        label = advocate_labels[name_variant]
+                        break
+                if label is None and last_name:
+                    for adv_name, adv_label in advocate_labels.items():
+                        if last_name.lower() in adv_name:
+                            label = adv_label
+                            break
+                # If matched as advocate, use side label; otherwise keep last name
+                speaker = label if label else (last_name or full_name)
             else:
                 speaker = str(speaker_obj or '').strip()
 
@@ -67,8 +109,9 @@ def api_transcript_to_statements(api_data: dict) -> list[dict]:
 def get_transcript(transcript_url: str, case: dict | None = None, timeout: int = 30) -> bool:
     """
     Fetch transcript from API and save as JSON in raw_cases/.
-    If case is provided (from basic.json), saves name, votes, majority so the file
+    If case is provided (from basic.json), saves name, votes, win_side so the file
     has all data needed to generate case_transcripts_cleaned format.
+    Advocates are labeled as 'Petitioner'/'Respondent' in statements.
     Returns True if saved, False if skipped (exists or no transcript).
     """
     file_name = safe_filename_from_url(transcript_url) + '.json'
@@ -88,7 +131,8 @@ def get_transcript(transcript_url: str, case: dict | None = None, timeout: int =
     except json.JSONDecodeError:
         return False
 
-    statements = api_transcript_to_statements(data)
+    advocate_labels = _build_advocate_label_map(case)
+    statements = api_transcript_to_statements(data, advocate_labels)
     if not statements:
         return False
 
@@ -98,7 +142,7 @@ def get_transcript(transcript_url: str, case: dict | None = None, timeout: int =
     if isinstance(case, dict):
         payload['name'] = case.get('name') or ''
         payload['votes'] = case.get('votes') or []
-        payload['majority'] = case.get('majority') or ''
+        payload['win_side'] = case.get('win_side', -1)
 
     os.makedirs(RAW_CASES_DIR, exist_ok=True)
     with open(file_path, 'w', encoding='utf-8') as f:

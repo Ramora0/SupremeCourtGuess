@@ -6,6 +6,7 @@ import os
 import re
 
 import torch
+import wandb
 from tqdm import tqdm
 from datasets import Dataset
 from peft import LoraConfig, get_peft_model
@@ -49,7 +50,6 @@ OUTPUT_DIR = "output/scotus-lora"
 
 VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
 EVAL_YEAR = "2019"
-DECISION_TOKEN_WEIGHT = 4.0
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -170,6 +170,12 @@ def tokenize_and_filter(
         vote_positions = [i for i, lb in enumerate(labels) if lb in vote_tokens]
         vote_mask = [0] * len(labels)
         outcome_mask = [0] * len(labels)
+
+        # Mask all non-vote completion tokens so loss fires only on votes
+        vote_position_set = set(vote_positions)
+        for i in range(len(prompt_ids), len(labels)):
+            if i not in vote_position_set:
+                labels[i] = -100
         if vote_positions:
             for pos in vote_positions[:-1]:
                 vote_mask[pos] = 1
@@ -312,53 +318,122 @@ def setup_model_and_tokenizer(model_name: str, quantize: bool = True):
 # ── Evaluation ────────────────────────────────────────────────────────────────
 
 
-def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
-    """Generate vote predictions for eval samples and score them."""
+def evaluate_logits(model, tokenizer, eval_samples: list[dict]):
+    """Evaluate with constrained autoregressive generation.
+
+    For each case, feed the prompt via KV cache, then iterate through justice
+    lines: force-feed the template tokens (justice name + colon), let the model
+    predict the vote token (Petitioner/Respondent), feed the predicted vote's
+    full token sequence back, then continue to the next justice.  The model's
+    own predictions flow through the context — no teacher forcing.
+    """
     model.eval()
     model.config.use_cache = True
+
+    pet_first = tokenizer.encode(" Petitioner", add_special_tokens=False)[0]
+    res_first = tokenizer.encode(" Respondent", add_special_tokens=False)[0]
+    pet_all = tokenizer.encode(" Petitioner", add_special_tokens=False)
+    res_all = tokenizer.encode(" Respondent", add_special_tokens=False)
+    vote_token_set = {pet_first, res_first}
 
     all_justice_results = {}  # justice -> list of bool
     case_results = []
 
-    print(f"\n── Generating predictions for {len(eval_samples)} eval cases ──\n")
+    print(f"\n── Logit-based evaluation for {len(eval_samples)} eval cases ──\n")
 
     for i, sample in enumerate(eval_samples):
-        prompt_ids = tokenizer.encode(sample["prompt"], return_tensors="pt")
+        # Tokenize prompt and completion separately
+        prompt_ids = tokenizer.encode(sample["prompt"], add_special_tokens=False)
+        completion_ids = tokenizer.encode(sample["completion"], add_special_tokens=False)
 
-        # Left-truncate prompt to fit in context
-        if prompt_ids.shape[1] > MAX_SEQ_LENGTH - 256:
-            prompt_ids = prompt_ids[:, -(MAX_SEQ_LENGTH - 256):]
+        if len(prompt_ids) > MAX_SEQ_LENGTH - 256:
+            prompt_ids = prompt_ids[-(MAX_SEQ_LENGTH - 256):]
 
-        prompt_ids = prompt_ids.to(model.device)
+        # Find vote token positions within completion_ids
+        vote_positions = [j for j, tid in enumerate(completion_ids)
+                          if tid in vote_token_set]
 
+        # Parse completion text to get ordered justice names
+        justice_names_ordered = []
+        for line in sample["completion"].strip().splitlines():
+            line = line.strip()
+            if not line or line.startswith("OUTCOME:"):
+                continue
+            if ": " not in line:
+                continue
+            name, side = line.rsplit(": ", 1)
+            if side.strip().lower() in ("petitioner", "respondent"):
+                justice_names_ordered.append(name.strip().lower())
+
+        # Justice votes are all positions except the last (OUTCOME line)
+        jvp = (vote_positions[:-1]
+               if len(vote_positions) > len(justice_names_ordered)
+               else vote_positions[:len(justice_names_ordered)])
+
+        assert len(jvp) == len(justice_names_ordered), (
+            f"Case {sample.get('filename', i)}: {len(jvp)} vote positions "
+            f"!= {len(justice_names_ordered)} justices"
+        )
+
+        # Feed prompt through model, build KV cache
+        input_tensor = torch.tensor([prompt_ids], device=model.device)
         with torch.no_grad():
-            output_ids = model.generate(
-                input_ids=prompt_ids,
-                max_new_tokens=256,
-                do_sample=False,
-                temperature=1.0,
-            )
+            out = model(input_ids=input_tensor, use_cache=True)
+            past_kv = out.past_key_values
 
-        # Decode only the new tokens
-        generated_ids = output_ids[0, prompt_ids.shape[1]:]
-        generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+        pred_votes = {}
+        prev_end = 0  # cursor into completion_ids for template segments
 
-        scores = score_predictions(generated_text, sample["completion"])
+        for j, (vpos, justice) in enumerate(zip(jvp, justice_names_ordered)):
+            # Feed template tokens before this vote (justice name, colon, etc.)
+            template_ids = completion_ids[prev_end:vpos]
+            if template_ids:
+                t = torch.tensor([template_ids], device=model.device)
+                with torch.no_grad():
+                    out = model(input_ids=t, past_key_values=past_kv,
+                                use_cache=True)
+                    past_kv = out.past_key_values
 
-        # Print per-case results
+            # Read logit at last position — predicts the vote first subtoken
+            last_logit = out.logits[0, -1, :]
+            pet_logit = last_logit[pet_first].item()
+            res_logit = last_logit[res_first].item()
+            pred_side = "petitioner" if pet_logit > res_logit else "respondent"
+            pred_votes[justice] = pred_side
+
+            # Feed the PREDICTED vote's full token sequence into KV cache
+            vote_full = pet_all if pred_side == "petitioner" else res_all
+            v = torch.tensor([vote_full], device=model.device)
+            with torch.no_grad():
+                out = model(input_ids=v, past_key_values=past_kv,
+                            use_cache=True)
+                past_kv = out.past_key_values
+
+            # Advance cursor past the ground-truth vote tokens in completion_ids
+            gt_vote = pet_all if completion_ids[vpos] == pet_first else res_all
+            prev_end = vpos + len(gt_vote)
+
+        # Score against ground truth
+        true_votes = parse_votes(sample["completion"])
+        for justice in justice_names_ordered:
+            if justice in true_votes:
+                correct = pred_votes[justice] == true_votes[justice]
+                if justice not in all_justice_results:
+                    all_justice_results[justice] = []
+                all_justice_results[justice].append(correct)
+
+        pred_result = case_result(pred_votes)
+        true_result = case_result(true_votes)
+        case_correct = pred_result == true_result if true_result else None
+
         filename = sample.get("filename", f"case_{i}")
         print(f"  Case: {filename}")
-        print(f"    Predicted: {scores['pred_votes']}")
-        print(f"    Truth:     {scores['true_votes']}")
-        print(f"    Case result correct: {scores['case_correct']}")
+        print(f"    Predicted: {pred_votes}")
+        print(f"    Truth:     {true_votes}")
+        print(f"    Case result correct: {case_correct}")
 
-        for justice, correct in scores["justice_results"].items():
-            if justice not in all_justice_results:
-                all_justice_results[justice] = []
-            all_justice_results[justice].append(correct)
-
-        if scores["case_correct"] is not None:
-            case_results.append(scores["case_correct"])
+        if case_correct is not None:
+            case_results.append(case_correct)
 
         print()
 
@@ -375,23 +450,32 @@ def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
             acc = sum(scored) / len(scored)
             total_correct += sum(scored)
             total_counted += len(scored)
-            missing = sum(1 for r in results if r is None)
-            extra = f" ({missing} missing)" if missing else ""
-            print(f"    {justice:30s}: {acc:5.1%} ({sum(scored)}/{len(scored)}){extra}")
+            print(f"    {justice:30s}: {acc:5.1%} ({sum(scored)}/{len(scored)})")
         else:
-            print(f"    {justice:30s}: N/A (not predicted)")
+            print(f"    {justice:30s}: N/A")
 
     if total_counted:
         print(f"    {'OVERALL':30s}: {total_correct/total_counted:5.1%} "
               f"({total_correct}/{total_counted})")
 
     print()
+    eval_metrics = {}
+    if total_counted:
+        eval_metrics["eval/justice_vote_acc"] = total_correct / total_counted
+        for justice in sorted(all_justice_results):
+            scored = [r for r in all_justice_results[justice] if r is not None]
+            if scored:
+                eval_metrics[f"eval/justice/{justice}"] = sum(scored) / len(scored)
     if case_results:
         case_acc = sum(case_results) / len(case_results)
+        eval_metrics["eval/case_acc"] = case_acc
         print(f"  Case result accuracy: {case_acc:5.1%} "
               f"({sum(case_results)}/{len(case_results)})")
     else:
         print("  Case result accuracy: N/A")
+
+    if eval_metrics and wandb.run is not None:
+        wandb.log(eval_metrics)
 
     model.config.use_cache = False
     model.train()
@@ -401,10 +485,9 @@ def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
 
 
 class VoteAccuracyTrainer(Trainer):
-    def __init__(self, *args, vote_token_ids=None, decision_token_weight=1.0, **kwargs):
+    def __init__(self, *args, vote_token_ids=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._vote_token_ids = vote_token_ids  # [pet_first, res_first]
-        self._decision_token_weight = decision_token_weight
         self._vote_prob_sum = 0.0
         self._vote_total = 0
         self._outcome_prob_sum = 0.0
@@ -441,20 +524,7 @@ class VoteAccuracyTrainer(Trainer):
         outcome_mask = inputs.pop("outcome_mask")
         outputs = model(**inputs)
 
-        # Boost loss at decision token positions without materializing full per-token loss
         loss = outputs.loss
-        if self._decision_token_weight != 1.0:
-            combined_mask = (vote_mask[:, 1:] + outcome_mask[:, 1:]).bool()
-            if combined_mask.any():
-                decision_logits = outputs.logits[:, :-1, :][combined_mask]
-                decision_labels = inputs["labels"][:, 1:][combined_mask]
-                decision_loss = torch.nn.functional.cross_entropy(
-                    decision_logits, decision_labels
-                )
-                n_total = (inputs["labels"][:, 1:] != -100).sum()
-                n_decision = combined_mask.sum()
-                # Add the extra weight only at decision positions
-                loss = loss + (self._decision_token_weight - 1.0) * decision_loss * n_decision / n_total
 
         self._micro_step += 1
 
@@ -534,10 +604,6 @@ def parse_args():
         "--no-quant", action="store_true",
         help="Disable 4-bit quantization (use bf16). Required for multi-GPU DDP training.",
     )
-    parser.add_argument(
-        "--decision-weight", type=float, default=DECISION_TOKEN_WEIGHT,
-        help=f"Loss weight multiplier for decision tokens (default: {DECISION_TOKEN_WEIGHT})",
-    )
     return parser.parse_args()
 
 
@@ -608,8 +674,6 @@ def train():
 
     pet_first = tokenizer.encode(" Petitioner", add_special_tokens=False)[0]
     res_first = tokenizer.encode(" Respondent", add_special_tokens=False)[0]
-    if is_main:
-        print(f"Decision token weight: {args.decision_weight}x")
     trainer = VoteAccuracyTrainer(
         model=model,
         args=training_args,
@@ -617,7 +681,6 @@ def train():
         eval_dataset=split["test"],
         data_collator=data_collator,
         vote_token_ids=[pet_first, res_first],
-        decision_token_weight=args.decision_weight,
     )
 
     trainer.train()
@@ -631,7 +694,7 @@ def train():
 
         # Run generative evaluation on held-out year
         if eval_samples:
-            evaluate_generation(model, tokenizer, eval_samples)
+            evaluate_logits(model, tokenizer, eval_samples)
         else:
             print(f"\nNo eval samples found for year {EVAL_YEAR}")
 
