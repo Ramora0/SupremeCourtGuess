@@ -121,6 +121,15 @@ def prepare_dataset(
 ) -> tuple[Dataset, Dataset]:
     """Tokenize all samples and return train/eval datasets (90/10 split)."""
     tokenized = [tokenize_sample(s, tokenizer, max_length) for s in samples]
+
+    lengths = sorted([len(t["input_ids"]) for t in tokenized], reverse=True)
+    print(f"\n── Token lengths ({len(lengths)} samples) ──")
+    for i, l in enumerate(lengths):
+        print(f"  {i+1:3d}. {l:,} tokens")
+    print(f"  Max: {max(lengths):,}  Min: {min(lengths):,}  "
+          f"Mean: {sum(lengths)//len(lengths):,}")
+    print()
+
     dataset = Dataset.from_list(tokenized)
     split = dataset.train_test_split(test_size=0.1, seed=42)
     print(
