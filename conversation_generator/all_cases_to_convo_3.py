@@ -10,6 +10,7 @@ Usage:
 """
 
 import os
+import random
 import re
 import sys
 from convokit import Corpus, download
@@ -91,7 +92,9 @@ def _build_justice_votes(convo):
     if not votes_side:
         return "JUSTICE VOTES: (none in metadata)"
     lines = ["JUSTICE VOTES:"]
-    for jid in sorted(votes_side.keys()):
+    jids = sorted(votes_side.keys())
+    random.shuffle(jids)
+    for jid in jids:
         side = votes_side[jid]
         name = _speaker_last_name(convo, jid)
         if side == PETITIONER_SIDE:
@@ -99,7 +102,7 @@ def _build_justice_votes(convo):
         elif side == RESPONDENT_SIDE:
             lines.append(f"{name}: Respondent")
         else:
-            lines.append(f"{name}: Recused / Unknown")
+            lines.append(f"{name}: Unknown")
     return "\n".join(lines)
 
 
