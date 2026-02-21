@@ -390,16 +390,15 @@ class VoteAccuracyTrainer(Trainer):
         outputs = model(**inputs)
         loss = outputs.loss
 
-        if self.state.global_step % 10 == 0:
-            with torch.no_grad():
-                preds = outputs.logits.argmax(dim=-1)
-                # logits are shifted: logits[i] predicts labels[i+1]
-                preds = preds[:, :-1]
-                labels = inputs["labels"][:, 1:]
-                mask = vote_mask[:, 1:].bool()
-                if mask.any():
-                    acc = (preds[mask] == labels[mask]).float().mean()
-                    self.log({"vote_accuracy": acc.item()})
+        with torch.no_grad():
+            preds = outputs.logits.argmax(dim=-1)
+            # logits are shifted: logits[i] predicts labels[i+1]
+            preds = preds[:, :-1]
+            labels = inputs["labels"][:, 1:]
+            mask = vote_mask[:, 1:].bool()
+            if mask.any():
+                acc = (preds[mask] == labels[mask]).float().mean()
+                self.log({"vote_accuracy": acc.item()})
 
         return (loss, outputs) if return_outputs else loss
 
