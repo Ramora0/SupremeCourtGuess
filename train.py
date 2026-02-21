@@ -266,25 +266,31 @@ def score_predictions(
 # ── Model setup ───────────────────────────────────────────────────────────────
 
 
-def setup_model_and_tokenizer(model_name: str):
-    """Load model in 4-bit (QLoRA) with SDPA and apply LoRA."""
-    print(f"Loading model: {model_name}")
+def setup_model_and_tokenizer(model_name: str, quantize: bool = True):
+    """Load model with SDPA and apply LoRA. Optionally use 4-bit quantization."""
+    print(f"Loading model: {model_name} ({'4-bit' if quantize else 'bf16'})")
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=True,
+    load_kwargs = dict(
+        attn_implementation="sdpa",
+        trust_remote_code=True,
     )
+
+    if quantize:
+        load_kwargs["quantization_config"] = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+        )
+    else:
+        load_kwargs["torch_dtype"] = torch.bfloat16
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        quantization_config=bnb_config,
-        attn_implementation="sdpa",
-        trust_remote_code=True,
+        **load_kwargs,
     )
     model.config.use_cache = False
     model.enable_input_require_grads()
@@ -508,6 +514,10 @@ def parse_args():
         "--model", choices=list(MODELS.keys()), default=DEFAULT_MODEL,
         help=f"Model size (default: {DEFAULT_MODEL}). Options: {', '.join(MODELS.keys())}",
     )
+    parser.add_argument(
+        "--no-quant", action="store_true",
+        help="Disable 4-bit quantization (use bf16). Required for multi-GPU DDP training.",
+    )
     return parser.parse_args()
 
 
@@ -516,7 +526,7 @@ def train():
     args = parse_args()
     os.environ.setdefault("WANDB_PROJECT", "supreme-court")
     model_name = MODELS[args.model]
-    model, tokenizer = setup_model_and_tokenizer(model_name)
+    model, tokenizer = setup_model_and_tokenizer(model_name, quantize=not args.no_quant)
 
     # Load and split by year
     all_samples = load_transcripts(DATA_DIR)

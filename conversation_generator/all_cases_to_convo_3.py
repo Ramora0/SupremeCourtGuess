@@ -69,7 +69,7 @@ def _build_speaker_to_label(convo):
         elif side == RESPONDENT_SIDE:
             speaker_to_label[aid] = "Respondent"
         else:
-            speaker_to_label[aid] = "Petitioner"
+            speaker_to_label[aid] = "Unknown"
 
     return speaker_to_label
 
