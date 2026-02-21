@@ -441,25 +441,20 @@ class VoteAccuracyTrainer(Trainer):
         outcome_mask = inputs.pop("outcome_mask")
         outputs = model(**inputs)
 
-        # Recompute loss with per-token weighting for decision tokens
+        # Boost loss at decision token positions without materializing full per-token loss
+        loss = outputs.loss
         if self._decision_token_weight != 1.0:
-            logits = outputs.logits[:, :-1, :].contiguous()
-            labels_shifted = inputs["labels"][:, 1:].contiguous()
-            # Per-token CE loss (unreduced)
-            per_token_loss = torch.nn.functional.cross_entropy(
-                logits.view(-1, logits.size(-1)),
-                labels_shifted.view(-1),
-                ignore_index=-100,
-                reduction="none",
-            ).view(labels_shifted.shape)
-            # Build weight tensor: 1.0 everywhere, boosted at vote positions
-            # vote_mask and outcome_mask mark the decision tokens
-            combined_decision_mask = (vote_mask[:, 1:] + outcome_mask[:, 1:]).float()
-            weights = 1.0 + combined_decision_mask * (self._decision_token_weight - 1.0)
-            weighted_loss = (per_token_loss * weights).sum() / (labels_shifted != -100).sum()
-            loss = weighted_loss
-        else:
-            loss = outputs.loss
+            combined_mask = (vote_mask[:, 1:] + outcome_mask[:, 1:]).bool()
+            if combined_mask.any():
+                decision_logits = outputs.logits[:, :-1, :][combined_mask]
+                decision_labels = inputs["labels"][:, 1:][combined_mask]
+                decision_loss = torch.nn.functional.cross_entropy(
+                    decision_logits, decision_labels
+                )
+                n_total = (inputs["labels"][:, 1:] != -100).sum()
+                n_decision = combined_mask.sum()
+                # Add the extra weight only at decision positions
+                loss = loss + (self._decision_token_weight - 1.0) * decision_loss * n_decision / n_total
 
         self._micro_step += 1
 
