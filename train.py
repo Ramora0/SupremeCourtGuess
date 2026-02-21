@@ -424,9 +424,9 @@ def train():
         gradient_checkpointing=True,
         eval_strategy="epoch",
         save_strategy="epoch",
-        logging_steps=10,
+        logging_steps=1,
         save_total_limit=2,
-        report_to="none",
+        report_to="wandb",
         dataloader_pin_memory=False,
     )
 
