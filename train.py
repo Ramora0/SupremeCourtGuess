@@ -403,7 +403,7 @@ class VoteAccuracyTrainer(Trainer):
         self._outcome_total = 0
         self._format_prob_sum = 0.0
         self._format_total = 0
-        self._last_logged_step = -1
+        self._micro_step = 0
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         vote_mask = inputs.pop("vote_mask")
@@ -411,15 +411,7 @@ class VoteAccuracyTrainer(Trainer):
         outputs = model(**inputs)
         loss = outputs.loss
 
-        # Reset accumulators at the start of each new optimizer step
-        if self.state.global_step != self._last_logged_step:
-            self._vote_prob_sum = 0.0
-            self._vote_total = 0
-            self._outcome_prob_sum = 0.0
-            self._outcome_total = 0
-            self._format_prob_sum = 0.0
-            self._format_total = 0
-            self._last_logged_step = self.state.global_step
+        self._micro_step += 1
 
         with torch.no_grad():
             # Shift: logits[i] predicts labels[i+1]
@@ -446,15 +438,23 @@ class VoteAccuracyTrainer(Trainer):
                 self._outcome_prob_sum += correct_probs.sum().item()
                 self._outcome_total += o_mask.sum().item()
 
-        metrics = {}
-        if self._vote_total > 0:
-            metrics["vote_prob"] = self._vote_prob_sum / self._vote_total
-        if self._outcome_total > 0:
-            metrics["outcome_prob"] = self._outcome_prob_sum / self._outcome_total
-        if self._format_total > 0:
-            metrics["format_prob"] = self._format_prob_sum / self._format_total
-        if metrics:
-            self.log(metrics)
+        # Log only after full grad accumulation window
+        if self._micro_step % self.args.gradient_accumulation_steps == 0:
+            metrics = {}
+            if self._vote_total > 0:
+                metrics["vote_prob"] = self._vote_prob_sum / self._vote_total
+            if self._outcome_total > 0:
+                metrics["outcome_prob"] = self._outcome_prob_sum / self._outcome_total
+            if self._format_total > 0:
+                metrics["format_prob"] = self._format_prob_sum / self._format_total
+            if metrics:
+                self.log(metrics)
+            self._vote_prob_sum = 0.0
+            self._vote_total = 0
+            self._outcome_prob_sum = 0.0
+            self._outcome_total = 0
+            self._format_prob_sum = 0.0
+            self._format_total = 0
 
         return (loss, outputs) if return_outputs else loss
 
