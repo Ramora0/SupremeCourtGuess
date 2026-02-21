@@ -43,7 +43,7 @@ LEARNING_RATE = 2e-4
 NUM_EPOCHS = 1
 WARMUP_RATIO = 0.05
 
-DATA_DIR = "case_transcripts"
+DATA_DIR = "case_transcripts_cleaned"
 MAX_TOKENS_DISCARD = 15000
 OUTPUT_DIR = "output/scotus-lora"
 
@@ -449,13 +449,11 @@ class VoteAccuracyTrainer(Trainer):
                 self._vote_prob_sum += correct_probs.sum().item()
                 self._vote_total += v_mask.sum().item()
 
-                # Format prob: P(Pet) + P(Res) at vote positions
-                vote_probs = probs[v_mask][:, self._vote_token_ids].sum(dim=-1)
-                self._format_prob_sum += vote_probs.sum().item()
-                self._format_total += v_mask.sum().item()
-
                 # First justice vote prob (no teacher forcing advantage)
+                first_vote_probs = probs[v_mask][0]
                 self._first_vote_prob_sum += correct_probs[0].item()
+                self._format_prob_sum += first_vote_probs[self._vote_token_ids].sum().item()
+                self._format_total += 1
                 self._first_vote_total += 1
 
                 # P(majority correct) per case via Poisson binomial DP
