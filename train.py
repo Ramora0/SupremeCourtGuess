@@ -34,11 +34,11 @@ LEARNING_RATE = 2e-4
 NUM_EPOCHS = 3
 WARMUP_RATIO = 0.05
 
-DATA_DIR = "data/case_transcripts"
+DATA_DIR = "case_transcripts"
 MAX_TOKENS_DISCARD = 15000
 OUTPUT_DIR = "output/scotus-lora"
 
-VOTES_TAG = "<votes>"
+VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
 EVAL_YEAR = "2025"
 
 
@@ -48,8 +48,8 @@ EVAL_YEAR = "2025"
 def load_transcripts(data_dir: str) -> list[dict]:
     """Load transcript files and split into prompt/completion pairs.
 
-    Prompt = everything up to and including <votes>
-    Completion = everything after <votes>
+    Prompt = everything up to and including the JUSTICE VOTES: header
+    Completion = the vote lines and outcome line
     """
     samples = []
     paths = sorted(glob.glob(os.path.join(data_dir, "*.txt")))
@@ -60,11 +60,11 @@ def load_transcripts(data_dir: str) -> list[dict]:
         with open(path) as f:
             text = f.read()
 
-        if VOTES_TAG not in text:
-            print(f"Warning: skipping {path} — no {VOTES_TAG} tag found")
+        if VOTES_DELIMITER not in text:
+            print(f"Warning: skipping {path} — no JUSTICE VOTES delimiter found")
             continue
 
-        idx = text.index(VOTES_TAG) + len(VOTES_TAG)
+        idx = text.index(VOTES_DELIMITER) + len(VOTES_DELIMITER)
         prompt = text[:idx]
         completion = text[idx:].strip()
 
@@ -167,29 +167,28 @@ def tokenize_and_filter(
 
 
 def parse_votes(text: str) -> dict[str, str]:
-    """Parse vote lines into {justice_last_name: side} dict.
+    """Parse vote lines into {justice_name: side} dict.
 
-    Expects lines like: "Roberts voted for the petitioner"
+    Expects lines like: "John G. Roberts, Jr.: Petitioner"
+    Normalizes names to lowercase for comparison.
     """
     votes = {}
     for line in text.strip().splitlines():
         line = line.strip()
-        if not line:
+        if not line or line.startswith("OUTCOME:"):
             continue
-        m = re.match(
-            r"(\w+)\s+voted\s+for\s+the\s+(petitioner|respondent)",
-            line,
-            re.IGNORECASE,
-        )
-        if m:
-            justice = m.group(1).capitalize()
-            side = m.group(2).lower()
-            votes[justice] = side
+        # Split on last ": " to handle names with commas
+        if ": " not in line:
+            continue
+        name, side = line.rsplit(": ", 1)
+        side = side.strip().lower()
+        if side in ("petitioner", "respondent"):
+            votes[name.strip().lower()] = side
     return votes
 
 
 def case_result(votes: dict[str, str]) -> str | None:
-    """Determine case winner by majority vote. Returns 'petitioner' or 'respondent'."""
+    """Determine case winner by majority vote."""
     if not votes:
         return None
     pet = sum(1 for v in votes.values() if v == "petitioner")
@@ -207,6 +206,7 @@ def score_predictions(
     """Compare predicted votes against ground truth.
 
     Returns per-justice correctness and case result correctness.
+    Order-agnostic: matches by justice name.
     """
     pred_votes = parse_votes(predicted_text)
     true_votes = parse_votes(ground_truth_text)
@@ -336,12 +336,12 @@ def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
             total_counted += len(scored)
             missing = sum(1 for r in results if r is None)
             extra = f" ({missing} missing)" if missing else ""
-            print(f"    {justice:15s}: {acc:5.1%} ({sum(scored)}/{len(scored)}){extra}")
+            print(f"    {justice:30s}: {acc:5.1%} ({sum(scored)}/{len(scored)}){extra}")
         else:
-            print(f"    {justice:15s}: N/A (not predicted)")
+            print(f"    {justice:30s}: N/A (not predicted)")
 
     if total_counted:
-        print(f"    {'OVERALL':15s}: {total_correct/total_counted:5.1%} "
+        print(f"    {'OVERALL':30s}: {total_correct/total_counted:5.1%} "
               f"({total_correct}/{total_counted})")
 
     print()

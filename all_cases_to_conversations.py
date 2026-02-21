@@ -145,7 +145,7 @@ def main():
     print(f"Writing {len(convo_ids)} cases to {out_dir}/", file=sys.stderr)
 
     seen_case_ids = set()
-    for i, convo_id in tqdm(enumerate(convo_ids, 1), total=len(convo_ids), desc="Processing cases"):
+    for i, convo_id in tqdm(list(enumerate(convo_ids, 1)), total=len(convo_ids), desc="Processing cases"):
         convo = corpus.get_conversation(convo_id)
         # Use case_id from metadata (e.g. docket number) for filename; fall back to conversation id
         case_id = dict(convo.meta).get("case_id", convo_id)
