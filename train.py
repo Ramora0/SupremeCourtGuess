@@ -469,6 +469,7 @@ def train():
         report_to="wandb",
         run_name=f"scotus-{args.model}",
         dataloader_pin_memory=False,
+        remove_unused_columns=False,
     )
 
     trainer = VoteAccuracyTrainer(
