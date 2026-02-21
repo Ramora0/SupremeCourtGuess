@@ -27,6 +27,7 @@ torch>=1.12.0
 peft>=0.7.0
 accelerate>=0.25.0
 datasets>=2.15.0
+bitsandbytes>=0.41.0
 # flash-attn>=2.3.0  # install separately: pip install flash-attn --no-build-isolation
 
 # Graph analysis

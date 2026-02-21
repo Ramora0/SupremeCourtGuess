@@ -9,6 +9,7 @@ from peft import LoraConfig, get_peft_model
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
+    BitsAndBytesConfig,
     DataCollatorForSeq2Seq,
     Trainer,
     TrainingArguments,
@@ -142,14 +143,21 @@ def prepare_dataset(
 
 
 def setup_model_and_tokenizer():
-    """Load Qwen2.5-7B in bf16 with flash attention and apply LoRA."""
+    """Load Qwen2.5-7B in 4-bit (QLoRA) with SDPA and apply LoRA."""
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_use_double_quant=True,
+    )
+
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        torch_dtype=torch.bfloat16,
+        quantization_config=bnb_config,
         attn_implementation="sdpa",
         trust_remote_code=True,
     )
