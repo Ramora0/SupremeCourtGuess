@@ -1,10 +1,12 @@
-"""QLoRA fine-tuning of Qwen2.5-7B for SCOTUS vote prediction."""
+"""QLoRA fine-tuning of Qwen2.5 for SCOTUS vote prediction."""
 
+import argparse
 import glob
 import os
 import re
 
 import torch
+from tqdm import tqdm
 from datasets import Dataset
 from peft import LoraConfig, get_peft_model
 from transformers import (
@@ -18,7 +20,14 @@ from transformers import (
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-MODEL_NAME = "Qwen/Qwen2.5-7B"
+MODELS = {
+    "7b": "Qwen/Qwen2.5-7B",
+    "3b": "Qwen/Qwen2.5-3B",
+    "1.5b": "Qwen/Qwen2.5-1.5B",
+    "0.5b": "Qwen/Qwen2.5-0.5B",
+}
+DEFAULT_MODEL = "7b"
+
 # MAX_SEQ_LENGTH = 32768
 MAX_SEQ_LENGTH = 16384
 
@@ -29,9 +38,9 @@ LORA_TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj"]
 
 # Training
 BATCH_SIZE = 1
-GRAD_ACCUM_STEPS = 1
+GRAD_ACCUM_STEPS = 8
 LEARNING_RATE = 2e-4
-NUM_EPOCHS = 3
+NUM_EPOCHS = 1
 WARMUP_RATIO = 0.05
 
 DATA_DIR = "case_transcripts"
@@ -39,7 +48,7 @@ MAX_TOKENS_DISCARD = 15000
 OUTPUT_DIR = "output/scotus-lora"
 
 VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
-EVAL_YEAR = "2025"
+EVAL_YEAR = "2019"
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -102,55 +111,63 @@ def split_by_year(
 # ── Tokenization ──────────────────────────────────────────────────────────────
 
 
-def tokenize_sample(
-    sample: dict, tokenizer, max_length: int
-) -> dict:
-    """Tokenize a single sample with left-truncation of the prompt.
+TOKENIZE_BATCH_SIZE = 256
 
-    The completion (+ EOS) is never truncated. If the total exceeds max_length,
-    the prompt is left-truncated so the end of the transcript (nearest to the
-    votes) is preserved.
 
-    Labels: -100 for prompt tokens, real IDs for completion tokens.
-    """
-    completion_ids = tokenizer.encode(
-        sample["completion"], add_special_tokens=False
-    ) + [tokenizer.eos_token_id]
-
-    prompt_ids = tokenizer.encode(sample["prompt"], add_special_tokens=False)
-
-    max_prompt_len = max_length - len(completion_ids)
-    if max_prompt_len <= 0:
-        raise ValueError(
-            f"Completion ({len(completion_ids)} tokens) exceeds max_length "
-            f"({max_length}). Increase MAX_SEQ_LENGTH."
-        )
-
-    # Left-truncate: keep the rightmost tokens of the prompt
-    if len(prompt_ids) > max_prompt_len:
-        prompt_ids = prompt_ids[-max_prompt_len:]
-
-    input_ids = prompt_ids + completion_ids
-    labels = [-100] * len(prompt_ids) + completion_ids
-    attention_mask = [1] * len(input_ids)
-
-    return {
-        "input_ids": input_ids,
-        "labels": labels,
-        "attention_mask": attention_mask,
-    }
+def _batch_encode(texts: list[str], tokenizer, batch_size: int) -> list[list[int]]:
+    """Tokenize texts in batches for speed."""
+    all_ids = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        encoded = tokenizer(batch, add_special_tokens=False,
+                            return_attention_mask=False)
+        all_ids.extend(encoded["input_ids"])
+    return all_ids
 
 
 def tokenize_and_filter(
     samples: list[dict], tokenizer, max_length: int, label: str
 ) -> list[dict]:
-    """Tokenize samples, print lengths, discard those exceeding MAX_TOKENS_DISCARD."""
-    tokenized = [tokenize_sample(s, tokenizer, max_length) for s in samples]
+    """Tokenize samples in batches, print lengths, discard those exceeding MAX_TOKENS_DISCARD."""
+    # Batch-tokenize prompts and completions separately
+    prompts = [s["prompt"] for s in samples]
+    completions = [s["completion"] for s in samples]
 
-    lengths = sorted([len(t["input_ids"]) for t in tokenized], reverse=True)
+    print(f"  Batch-tokenizing {len(samples)} prompts ...")
+    prompt_ids_list = _batch_encode(prompts, tokenizer, TOKENIZE_BATCH_SIZE)
+
+    print(f"  Batch-tokenizing {len(samples)} completions ...")
+    completion_ids_list = _batch_encode(completions, tokenizer, TOKENIZE_BATCH_SIZE)
+
+    # Assemble samples with left-truncation and label masking
+    tokenized = []
+    for prompt_ids, completion_ids in tqdm(
+        zip(prompt_ids_list, completion_ids_list),
+        total=len(samples),
+        desc=f"Assembling {label}",
+    ):
+        completion_ids = completion_ids + [tokenizer.eos_token_id]
+
+        max_prompt_len = max_length - len(completion_ids)
+        if max_prompt_len <= 0:
+            continue  # completion alone exceeds max_length, skip
+
+        # Left-truncate: keep the rightmost tokens of the prompt
+        if len(prompt_ids) > max_prompt_len:
+            prompt_ids = prompt_ids[-max_prompt_len:]
+
+        input_ids = prompt_ids + completion_ids
+        labels = [-100] * len(prompt_ids) + completion_ids
+        attention_mask = [1] * len(input_ids)
+
+        tokenized.append({
+            "input_ids": input_ids,
+            "labels": labels,
+            "attention_mask": attention_mask,
+        })
+
+    lengths = [len(t["input_ids"]) for t in tokenized]
     print(f"\n── Token lengths: {label} ({len(lengths)} samples) ──")
-    for i, l in enumerate(lengths):
-        print(f"  {i+1:3d}. {l:,} tokens")
     print(f"  Max: {max(lengths):,}  Min: {min(lengths):,}  "
           f"Mean: {sum(lengths)//len(lengths):,}")
 
@@ -233,9 +250,10 @@ def score_predictions(
 # ── Model setup ───────────────────────────────────────────────────────────────
 
 
-def setup_model_and_tokenizer():
-    """Load Qwen2.5-7B in 4-bit (QLoRA) with SDPA and apply LoRA."""
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+def setup_model_and_tokenizer(model_name: str):
+    """Load model in 4-bit (QLoRA) with SDPA and apply LoRA."""
+    print(f"Loading model: {model_name}")
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -247,7 +265,7 @@ def setup_model_and_tokenizer():
     )
 
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME,
+        model_name,
         quantization_config=bnb_config,
         attn_implementation="sdpa",
         trust_remote_code=True,
@@ -359,9 +377,20 @@ def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
 # ── Training ──────────────────────────────────────────────────────────────────
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fine-tune Qwen2.5 for SCOTUS vote prediction")
+    parser.add_argument(
+        "--model", choices=list(MODELS.keys()), default=DEFAULT_MODEL,
+        help=f"Model size (default: {DEFAULT_MODEL}). Options: {', '.join(MODELS.keys())}",
+    )
+    return parser.parse_args()
+
+
 def train():
     """Main training entry point."""
-    model, tokenizer = setup_model_and_tokenizer()
+    args = parse_args()
+    model_name = MODELS[args.model]
+    model, tokenizer = setup_model_and_tokenizer(model_name)
 
     # Load and split by year
     all_samples = load_transcripts(DATA_DIR)
