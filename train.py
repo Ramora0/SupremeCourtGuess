@@ -568,7 +568,7 @@ class VoteAccuracyTrainer(Trainer):
 
             o_mask = outcome_mask[:, 1:].bool()
             if o_mask.any():
-                label_ids = labels[o_mask]
+                label_ids = shifted_labels[o_mask]
                 correct_probs = probs[o_mask].gather(1, label_ids.unsqueeze(1)).squeeze(1)
                 self._outcome_prob_sum += correct_probs.sum().item()
                 self._outcome_total += o_mask.sum().item()
