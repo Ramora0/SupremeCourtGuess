@@ -436,11 +436,20 @@ def train():
     print(f"Train split: {len(split['train'])} train, "
           f"{len(split['test'])} loss-eval samples")
 
-    data_collator = DataCollatorForSeq2Seq(
+    _base_collator = DataCollatorForSeq2Seq(
         tokenizer=tokenizer,
         padding=True,
         pad_to_multiple_of=8,
     )
+
+    def data_collator(features):
+        vote_masks = [f.pop("vote_mask") for f in features]
+        batch = _base_collator(features)
+        max_len = batch["input_ids"].shape[1]
+        batch["vote_mask"] = torch.tensor(
+            [vm + [0] * (max_len - len(vm)) for vm in vote_masks]
+        )
+        return batch
 
     training_args = TrainingArguments(
         output_dir=OUTPUT_DIR,
