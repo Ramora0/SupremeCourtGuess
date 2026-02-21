@@ -49,7 +49,7 @@ OUTPUT_DIR = "output/scotus-lora"
 
 VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
 EVAL_YEAR = "2019"
-DECISION_TOKEN_WEIGHT = 2.0
+DECISION_TOKEN_WEIGHT = 4.0
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
