@@ -49,6 +49,7 @@ OUTPUT_DIR = "output/scotus-lora"
 
 VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
 EVAL_YEAR = "2019"
+DECISION_TOKEN_WEIGHT = 2.0
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -266,25 +267,31 @@ def score_predictions(
 # ── Model setup ───────────────────────────────────────────────────────────────
 
 
-def setup_model_and_tokenizer(model_name: str):
-    """Load model in 4-bit (QLoRA) with SDPA and apply LoRA."""
-    print(f"Loading model: {model_name}")
+def setup_model_and_tokenizer(model_name: str, quantize: bool = True):
+    """Load model with SDPA and apply LoRA. Optionally use 4-bit quantization."""
+    print(f"Loading model: {model_name} ({'4-bit' if quantize else 'bf16'})")
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=True,
+    load_kwargs = dict(
+        attn_implementation="sdpa",
+        trust_remote_code=True,
     )
+
+    if quantize:
+        load_kwargs["quantization_config"] = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+        )
+    else:
+        load_kwargs["torch_dtype"] = torch.bfloat16
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        quantization_config=bnb_config,
-        attn_implementation="sdpa",
-        trust_remote_code=True,
+        **load_kwargs,
     )
     model.config.use_cache = False
     model.enable_input_require_grads()
@@ -394,9 +401,10 @@ def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
 
 
 class VoteAccuracyTrainer(Trainer):
-    def __init__(self, *args, vote_token_ids=None, **kwargs):
+    def __init__(self, *args, vote_token_ids=None, decision_token_weight=1.0, **kwargs):
         super().__init__(*args, **kwargs)
         self._vote_token_ids = vote_token_ids  # [pet_first, res_first]
+        self._decision_token_weight = decision_token_weight
         self._vote_prob_sum = 0.0
         self._vote_total = 0
         self._outcome_prob_sum = 0.0
@@ -432,7 +440,26 @@ class VoteAccuracyTrainer(Trainer):
         vote_mask = inputs.pop("vote_mask")
         outcome_mask = inputs.pop("outcome_mask")
         outputs = model(**inputs)
-        loss = outputs.loss
+
+        # Recompute loss with per-token weighting for decision tokens
+        if self._decision_token_weight != 1.0:
+            logits = outputs.logits[:, :-1, :].contiguous()
+            labels_shifted = inputs["labels"][:, 1:].contiguous()
+            # Per-token CE loss (unreduced)
+            per_token_loss = torch.nn.functional.cross_entropy(
+                logits.view(-1, logits.size(-1)),
+                labels_shifted.view(-1),
+                ignore_index=-100,
+                reduction="none",
+            ).view(labels_shifted.shape)
+            # Build weight tensor: 1.0 everywhere, boosted at vote positions
+            # vote_mask and outcome_mask mark the decision tokens
+            combined_decision_mask = (vote_mask[:, 1:] + outcome_mask[:, 1:]).float()
+            weights = 1.0 + combined_decision_mask * (self._decision_token_weight - 1.0)
+            weighted_loss = (per_token_loss * weights).sum() / (labels_shifted != -100).sum()
+            loss = weighted_loss
+        else:
+            loss = outputs.loss
 
         self._micro_step += 1
 
@@ -508,15 +535,25 @@ def parse_args():
         "--model", choices=list(MODELS.keys()), default=DEFAULT_MODEL,
         help=f"Model size (default: {DEFAULT_MODEL}). Options: {', '.join(MODELS.keys())}",
     )
+    parser.add_argument(
+        "--no-quant", action="store_true",
+        help="Disable 4-bit quantization (use bf16). Required for multi-GPU DDP training.",
+    )
+    parser.add_argument(
+        "--decision-weight", type=float, default=DECISION_TOKEN_WEIGHT,
+        help=f"Loss weight multiplier for decision tokens (default: {DECISION_TOKEN_WEIGHT})",
+    )
     return parser.parse_args()
 
 
 def train():
     """Main training entry point."""
     args = parse_args()
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    is_main = local_rank == 0
     os.environ.setdefault("WANDB_PROJECT", "supreme-court")
     model_name = MODELS[args.model]
-    model, tokenizer = setup_model_and_tokenizer(model_name)
+    model, tokenizer = setup_model_and_tokenizer(model_name, quantize=not args.no_quant)
 
     # Load and split by year
     all_samples = load_transcripts(DATA_DIR)
@@ -528,8 +565,9 @@ def train():
     )
     train_dataset = Dataset.from_list(train_tokenized)
     split = train_dataset.train_test_split(test_size=0.1, seed=42)
-    print(f"Train split: {len(split['train'])} train, "
-          f"{len(split['test'])} loss-eval samples")
+    if is_main:
+        print(f"Train split: {len(split['train'])} train, "
+              f"{len(split['test'])} loss-eval samples")
 
     _base_collator = DataCollatorForSeq2Seq(
         tokenizer=tokenizer,
@@ -561,11 +599,13 @@ def train():
         warmup_ratio=WARMUP_RATIO,
         bf16=True,
         gradient_checkpointing=True,
-        eval_strategy="epoch",
-        save_strategy="epoch",
+        eval_strategy="steps",
+        eval_steps=100,
+        save_strategy="steps",
+        save_steps=100,
         logging_steps=1,
         save_total_limit=2,
-        report_to="wandb",
+        report_to="wandb" if is_main else "none",
         run_name=f"scotus-{args.model}",
         dataloader_pin_memory=False,
         remove_unused_columns=False,
@@ -573,6 +613,8 @@ def train():
 
     pet_first = tokenizer.encode(" Petitioner", add_special_tokens=False)[0]
     res_first = tokenizer.encode(" Respondent", add_special_tokens=False)[0]
+    if is_main:
+        print(f"Decision token weight: {args.decision_weight}x")
     trainer = VoteAccuracyTrainer(
         model=model,
         args=training_args,
@@ -580,21 +622,23 @@ def train():
         eval_dataset=split["test"],
         data_collator=data_collator,
         vote_token_ids=[pet_first, res_first],
+        decision_token_weight=args.decision_weight,
     )
 
     trainer.train()
 
-    # Save final adapter
-    final_path = os.path.join(OUTPUT_DIR, "final_adapter")
-    model.save_pretrained(final_path)
-    tokenizer.save_pretrained(final_path)
-    print(f"Saved adapter to {final_path}")
+    # Save final adapter (only on main process)
+    if is_main:
+        final_path = os.path.join(OUTPUT_DIR, "final_adapter")
+        model.save_pretrained(final_path)
+        tokenizer.save_pretrained(final_path)
+        print(f"Saved adapter to {final_path}")
 
-    # Run generative evaluation on held-out year
-    if eval_samples:
-        evaluate_generation(model, tokenizer, eval_samples)
-    else:
-        print(f"\nNo eval samples found for year {EVAL_YEAR}")
+        # Run generative evaluation on held-out year
+        if eval_samples:
+            evaluate_generation(model, tokenizer, eval_samples)
+        else:
+            print(f"\nNo eval samples found for year {EVAL_YEAR}")
 
 
 if __name__ == "__main__":
