@@ -39,7 +39,7 @@ LORA_TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj"]
 # Training
 BATCH_SIZE = 1
 GRAD_ACCUM_STEPS = 8
-LEARNING_RATE = 2e-4
+LEARNING_RATE = 5e-5
 NUM_EPOCHS = 1
 WARMUP_RATIO = 0.05
 
@@ -49,7 +49,7 @@ OUTPUT_DIR = "output/scotus-lora"
 
 VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
 EVAL_YEAR = "2019"
-DECISION_TOKEN_WEIGHT = 2.0
+DECISION_TOKEN_WEIGHT = 4.0
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
