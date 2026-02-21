@@ -394,12 +394,15 @@ def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
 
 
 class VoteAccuracyTrainer(Trainer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, vote_token_ids=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._vote_token_ids = vote_token_ids  # [pet_first, res_first]
         self._vote_prob_sum = 0.0
         self._vote_total = 0
         self._outcome_prob_sum = 0.0
         self._outcome_total = 0
+        self._format_prob_sum = 0.0
+        self._format_total = 0
         self._last_logged_step = -1
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
@@ -414,6 +417,8 @@ class VoteAccuracyTrainer(Trainer):
             self._vote_total = 0
             self._outcome_prob_sum = 0.0
             self._outcome_total = 0
+            self._format_prob_sum = 0.0
+            self._format_total = 0
             self._last_logged_step = self.state.global_step
 
         with torch.no_grad():
@@ -429,6 +434,11 @@ class VoteAccuracyTrainer(Trainer):
                 self._vote_prob_sum += correct_probs.sum().item()
                 self._vote_total += v_mask.sum().item()
 
+                # Format prob: P(Pet) + P(Res) at vote positions
+                vote_probs = probs[v_mask][:, self._vote_token_ids].sum(dim=-1)
+                self._format_prob_sum += vote_probs.sum().item()
+                self._format_total += v_mask.sum().item()
+
             o_mask = outcome_mask[:, 1:].bool()
             if o_mask.any():
                 label_ids = labels[o_mask]
@@ -441,6 +451,8 @@ class VoteAccuracyTrainer(Trainer):
             metrics["vote_prob"] = self._vote_prob_sum / self._vote_total
         if self._outcome_total > 0:
             metrics["outcome_prob"] = self._outcome_prob_sum / self._outcome_total
+        if self._format_total > 0:
+            metrics["format_prob"] = self._format_prob_sum / self._format_total
         if metrics:
             self.log(metrics)
 
@@ -519,12 +531,15 @@ def train():
         remove_unused_columns=False,
     )
 
+    pet_first = tokenizer.encode(" Petitioner", add_special_tokens=False)[0]
+    res_first = tokenizer.encode(" Respondent", add_special_tokens=False)[0]
     trainer = VoteAccuracyTrainer(
         model=model,
         args=training_args,
         train_dataset=split["train"],
         eval_dataset=split["test"],
         data_collator=data_collator,
+        vote_token_ids=[pet_first, res_first],
     )
 
     trainer.train()
