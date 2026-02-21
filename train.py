@@ -139,6 +139,11 @@ def tokenize_and_filter(
     print(f"  Batch-tokenizing {len(samples)} completions ...")
     completion_ids_list = _batch_encode(completions, tokenizer, TOKENIZE_BATCH_SIZE)
 
+    # First subtokens of vote words for vote_mask
+    pet_first = tokenizer.encode("Petitioner", add_special_tokens=False)[0]
+    res_first = tokenizer.encode("Respondent", add_special_tokens=False)[0]
+    vote_tokens = {pet_first, res_first}
+
     # Assemble samples with left-truncation and label masking
     tokenized = []
     for prompt_ids, completion_ids in tqdm(
@@ -159,11 +164,13 @@ def tokenize_and_filter(
         input_ids = prompt_ids + completion_ids
         labels = [-100] * len(prompt_ids) + completion_ids
         attention_mask = [1] * len(input_ids)
+        vote_mask = [1 if (lb in vote_tokens) else 0 for lb in labels]
 
         tokenized.append({
             "input_ids": input_ids,
             "labels": labels,
             "attention_mask": attention_mask,
+            "vote_mask": vote_mask,
         })
 
     lengths = [len(t["input_ids"]) for t in tokenized]
@@ -374,6 +381,29 @@ def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
     model.train()
 
 
+# ── Custom Trainer with vote accuracy ─────────────────────────────────────
+
+
+class VoteAccuracyTrainer(Trainer):
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        vote_mask = inputs.pop("vote_mask")
+        outputs = model(**inputs)
+        loss = outputs.loss
+
+        if self.state.global_step % 10 == 0:
+            with torch.no_grad():
+                preds = outputs.logits.argmax(dim=-1)
+                # logits are shifted: logits[i] predicts labels[i+1]
+                preds = preds[:, :-1]
+                labels = inputs["labels"][:, 1:]
+                mask = vote_mask[:, 1:].bool()
+                if mask.any():
+                    acc = (preds[mask] == labels[mask]).float().mean()
+                    self.log({"vote_accuracy": acc.item()})
+
+        return (loss, outputs) if return_outputs else loss
+
+
 # ── Training ──────────────────────────────────────────────────────────────────
 
 
@@ -389,6 +419,7 @@ def parse_args():
 def train():
     """Main training entry point."""
     args = parse_args()
+    os.environ.setdefault("WANDB_PROJECT", "supreme-court")
     model_name = MODELS[args.model]
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
@@ -427,10 +458,11 @@ def train():
         logging_steps=1,
         save_total_limit=2,
         report_to="wandb",
+        run_name=f"scotus-{args.model}",
         dataloader_pin_memory=False,
     )
 
-    trainer = Trainer(
+    trainer = VoteAccuracyTrainer(
         model=model,
         args=training_args,
         train_dataset=split["train"],
