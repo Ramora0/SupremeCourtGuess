@@ -28,7 +28,7 @@ LORA_TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj"]
 
 # Training
 BATCH_SIZE = 1
-GRAD_ACCUM_STEPS = 8
+GRAD_ACCUM_STEPS = 1
 LEARNING_RATE = 2e-4
 NUM_EPOCHS = 3
 WARMUP_RATIO = 0.05
