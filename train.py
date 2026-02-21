@@ -140,8 +140,9 @@ def tokenize_and_filter(
     completion_ids_list = _batch_encode(completions, tokenizer, TOKENIZE_BATCH_SIZE)
 
     # First subtokens of vote words for vote_mask
-    pet_first = tokenizer.encode("Petitioner", add_special_tokens=False)[0]
-    res_first = tokenizer.encode("Respondent", add_special_tokens=False)[0]
+    # In context these appear after ": " so the leading space is part of the token
+    pet_first = tokenizer.encode(" Petitioner", add_special_tokens=False)[0]
+    res_first = tokenizer.encode(" Respondent", add_special_tokens=False)[0]
     vote_tokens = {pet_first, res_first}
 
     # Assemble samples with left-truncation and label masking

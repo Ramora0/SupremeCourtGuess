@@ -1,67 +1,49 @@
-# supreme_convokit_inspect.py
-# pip install convokit pandas
+"""Debug tokenization of vote words to find correct token IDs for vote_mask."""
+from transformers import AutoTokenizer
 
-from convokit import Corpus, download
-import json
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B", trust_remote_code=True)
 
-def safe_preview(obj, n=1000):
-    """Pretty-print helper that won't explode on non-serializable values."""
-    try:
-        s = json.dumps(obj, indent=2, default=str)
-    except Exception:
-        s = str(obj)
-    if len(s) > n:
-        s = s[:n] + "\n... (truncated)"
-    return s
+# How does the tokenizer split these in different contexts?
+tests = [
+    "Petitioner",
+    "Respondent",
+    " Petitioner",
+    " Respondent",
+    ": Petitioner",
+    ": Respondent",
+    "Earl Warren: Petitioner\n",
+    "Earl Warren: Respondent\n",
+    "Tom C. Clark: Petitioner\nOUTCOME: Petitioner won.",
+]
 
-def main():
-    print("Downloading / loading ConvoKit Supreme Court corpus...")
-    corpus = Corpus(filename=download("supreme-corpus"))
+print("=== Token IDs for each test string ===\n")
+for text in tests:
+    ids = tokenizer.encode(text, add_special_tokens=False)
+    tokens = [tokenizer.decode([i]) for i in ids]
+    print(f"Text: {text!r}")
+    print(f"  IDs:    {ids}")
+    print(f"  Tokens: {tokens}")
+    print()
 
-    # Get all case IDs (ConvoKit conversations ~= cases here)
-    convo_ids = corpus.get_conversation_ids()
-    print(f"\nTotal conversations (cases): {len(convo_ids)}")
+# Now simulate what happens in the actual completion
+print("=== Simulating actual completion tokenization ===\n")
+completion = """Earl Warren: Respondent
+Felix Frankfurter: Respondent
+Hugo L. Black: Respondent
+Tom C. Clark: Petitioner
 
-    # Pick one case
-    case_id = convo_ids[0]
-    convo = corpus.get_conversation(case_id)
+OUTCOME: Respondent won."""
 
-    print("\n=== CASE / CONVERSATION OBJECT ===")
-    print(f"conversation_id: {convo.id}")
+ids = tokenizer.encode(completion, add_special_tokens=False)
+tokens = [tokenizer.decode([i]) for i in ids]
+for i, (tid, tok) in enumerate(zip(ids, tokens)):
+    print(f"  [{i:3d}] id={tid:6d}  token={tok!r}")
 
-    # Conversation metadata (varies by corpus)
-    print("\nConversation metadata keys:")
-    print(list(convo.meta.keys()))
+# Check what the standalone encode gives
+print("\n=== Standalone encode ===")
+pet_first = tokenizer.encode("Petitioner", add_special_tokens=False)[0]
+res_first = tokenizer.encode("Respondent", add_special_tokens=False)[0]
+print(f"pet_first={pet_first} ({tokenizer.decode([pet_first])!r})")
+print(f"res_first={res_first} ({tokenizer.decode([res_first])!r})")
 
-    print("\nConversation metadata preview:")
-    print(safe_preview(dict(convo.meta), n=2000))
-
-    # Utterances in this case
-    utt_ids = convo.get_utterance_ids()
-    print(f"\nUtterance count in this case: {len(utt_ids)}")
-
-    print("\n=== FIRST 5 UTTERANCES ===")
-    for i, utt_id in enumerate(utt_ids[:5], 1):
-        utt = convo.get_utterance(utt_id)
-        print(f"\n--- Utterance {i} ---")
-        print(f"id: {utt.id}")
-        print(f"speaker.id: {utt.speaker.id if utt.speaker else None}")
-        print(f"conversation_id: {utt.conversation_id}")
-        print(f"reply_to: {utt.reply_to}")
-        print(f"timestamp: {utt.timestamp}")
-        print(f"text: {utt.text[:300]!r}")
-
-        # metadata often contains useful Supreme Court-specific fields
-        print(f"utterance.meta keys: {list(utt.meta.keys())[:20]}")
-        if utt.meta:
-            # print a tiny sample of meta
-            meta_items = list(dict(utt.meta).items())[:5]
-            print("utterance.meta sample:", safe_preview(dict(meta_items), n=1200))
-
-    # Optional: dataframe view (handy for ML preprocessing)
-    print("\n=== UTT DF HEAD ===")
-    utt_df = convo.get_utterances_dataframe()
-    print(utt_df.head(3).to_string())
-
-if __name__ == "__main__":
-    main()
+print(f"\nDo these IDs appear in the completion? pet_first: {pet_first in ids}, res_first: {res_first in ids}")
