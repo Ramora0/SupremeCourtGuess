@@ -165,13 +165,21 @@ def tokenize_and_filter(
         input_ids = prompt_ids + completion_ids
         labels = [-100] * len(prompt_ids) + completion_ids
         attention_mask = [1] * len(input_ids)
-        vote_mask = [1 if (lb in vote_tokens) else 0 for lb in labels]
+        # Find all vote token positions; last one is the OUTCOME line
+        vote_positions = [i for i, lb in enumerate(labels) if lb in vote_tokens]
+        vote_mask = [0] * len(labels)
+        outcome_mask = [0] * len(labels)
+        if vote_positions:
+            for pos in vote_positions[:-1]:
+                vote_mask[pos] = 1
+            outcome_mask[vote_positions[-1]] = 1
 
         tokenized.append({
             "input_ids": input_ids,
             "labels": labels,
             "attention_mask": attention_mask,
             "vote_mask": vote_mask,
+            "outcome_mask": outcome_mask,
         })
 
     lengths = [len(t["input_ids"]) for t in tokenized]
@@ -386,41 +394,55 @@ def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
 
 
 class VoteAccuracyTrainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._vote_prob_sum = 0.0
+        self._vote_total = 0
+        self._outcome_prob_sum = 0.0
+        self._outcome_total = 0
+        self._last_logged_step = -1
+
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
-        print(f"\n[DEBUG] compute_loss called, input keys: {list(inputs.keys())}")
-        print(f"[DEBUG] 'vote_mask' in inputs: {'vote_mask' in inputs}")
-
-        if "vote_mask" not in inputs:
-            print("[DEBUG] vote_mask MISSING — falling back to standard loss")
-            outputs = model(**inputs)
-            return (outputs.loss, outputs) if return_outputs else outputs.loss
-
         vote_mask = inputs.pop("vote_mask")
-        print(f"[DEBUG] vote_mask shape: {vote_mask.shape}, sum: {vote_mask.sum().item()}")
-
+        outcome_mask = inputs.pop("outcome_mask")
         outputs = model(**inputs)
         loss = outputs.loss
-        print(f"[DEBUG] loss: {loss.item():.4f}")
 
-        if outputs.logits is None:
-            print("[DEBUG] logits is None! gradient_checkpointing may be hiding them")
-        else:
-            print(f"[DEBUG] logits shape: {outputs.logits.shape}")
-            with torch.no_grad():
-                preds = outputs.logits.argmax(dim=-1)
-                preds = preds[:, :-1]
-                labels = inputs["labels"][:, 1:]
-                mask = vote_mask[:, 1:].bool()
-                n_vote = mask.sum().item()
-                print(f"[DEBUG] shifted mask sum: {n_vote}")
-                if mask.any():
-                    correct = (preds[mask] == labels[mask]).sum().item()
-                    total = n_vote
-                    acc = correct / total
-                    print(f"[DEBUG] vote acc: {correct}/{total} = {acc:.3f}")
-                    self.log({"vote_accuracy": acc})
-                else:
-                    print("[DEBUG] mask has no True values after shift!")
+        # Reset accumulators at the start of each new optimizer step
+        if self.state.global_step != self._last_logged_step:
+            self._vote_prob_sum = 0.0
+            self._vote_total = 0
+            self._outcome_prob_sum = 0.0
+            self._outcome_total = 0
+            self._last_logged_step = self.state.global_step
+
+        with torch.no_grad():
+            # Shift: logits[i] predicts labels[i+1]
+            logits = outputs.logits[:, :-1, :]
+            labels = inputs["labels"][:, 1:]
+            probs = logits.softmax(dim=-1)
+
+            v_mask = vote_mask[:, 1:].bool()
+            if v_mask.any():
+                label_ids = labels[v_mask]
+                correct_probs = probs[v_mask].gather(1, label_ids.unsqueeze(1)).squeeze(1)
+                self._vote_prob_sum += correct_probs.sum().item()
+                self._vote_total += v_mask.sum().item()
+
+            o_mask = outcome_mask[:, 1:].bool()
+            if o_mask.any():
+                label_ids = labels[o_mask]
+                correct_probs = probs[o_mask].gather(1, label_ids.unsqueeze(1)).squeeze(1)
+                self._outcome_prob_sum += correct_probs.sum().item()
+                self._outcome_total += o_mask.sum().item()
+
+        metrics = {}
+        if self._vote_total > 0:
+            metrics["vote_prob"] = self._vote_prob_sum / self._vote_total
+        if self._outcome_total > 0:
+            metrics["outcome_prob"] = self._outcome_prob_sum / self._outcome_total
+        if metrics:
+            self.log(metrics)
 
         return (loss, outputs) if return_outputs else loss
 
@@ -465,10 +487,14 @@ def train():
 
     def data_collator(features):
         vote_masks = [f.pop("vote_mask") for f in features]
+        outcome_masks = [f.pop("outcome_mask") for f in features]
         batch = _base_collator(features)
         max_len = batch["input_ids"].shape[1]
         batch["vote_mask"] = torch.tensor(
             [vm + [0] * (max_len - len(vm)) for vm in vote_masks]
+        )
+        batch["outcome_mask"] = torch.tensor(
+            [om + [0] * (max_len - len(om)) for om in outcome_masks]
         )
         return batch
 
