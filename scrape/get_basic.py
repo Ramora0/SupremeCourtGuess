@@ -6,10 +6,13 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
 import json
+import os
 import requests
 from tqdm import tqdm
 
-with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/cases.json', 'r') as file:
+DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
+
+with open(os.path.join(DATA_DIR, 'cases.json'), 'r') as file:
     cases = json.load(file)
 
 
@@ -177,10 +180,10 @@ def _extract_parties(soup):
 # Configuration: Set to True to re-run previously failed cases
 RERUN_BAD_CASES = False
 
-with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/basic.json', 'r') as file:
+with open(os.path.join(DATA_DIR, 'basic.json'), 'r') as file:
     main = json.load(file)
 
-with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/bad_cases.json', 'r') as file:
+with open(os.path.join(DATA_DIR, 'bad_cases.json'), 'r') as file:
     bad_cases = json.load(file)
 
 # Filter out cases that are already processed
@@ -217,12 +220,12 @@ for case in tqdm(cases_to_process, desc="Processing cases"):
             if RERUN_BAD_CASES and case['name'] in bad_case_names:
                 bad_cases = [
                     bc for bc in bad_cases if bc['name'] != case['name']]
-                with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/bad_cases.json', 'w') as file:
+                with open(os.path.join(DATA_DIR, 'bad_cases.json'), 'w') as file:
                     json.dump(bad_cases, file)
                 print(
                     f"Successfully processed previously failed case: {case['name']}")
 
-            with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/basic.json', 'w') as file:
+            with open(os.path.join(DATA_DIR, 'basic.json'), 'w') as file:
                 json.dump(main, file)
     except TimeoutException:
         # WebDriverWait timeout - add to bad cases and continue
@@ -230,7 +233,7 @@ for case in tqdm(cases_to_process, desc="Processing cases"):
         # Only add to bad_cases if it's not already there
         if case['name'] not in bad_case_names:
             bad_cases.append(case)
-        with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/bad_cases.json', 'w') as file:
+        with open(os.path.join(DATA_DIR, 'bad_cases.json'), 'w') as file:
             json.dump(bad_cases, file)
         continue
     except Exception as e:

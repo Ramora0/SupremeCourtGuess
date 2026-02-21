@@ -4,6 +4,8 @@ import os
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 
+DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
+
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -14,8 +16,7 @@ from tqdm import tqdm
 
 
 def get_transcript(url):
-    file_path = f"""/Users/leedavis/coding/Python/SupremeCourtGuess/data/raw_cases/{
-        url.replace('/', '-')}.json"""
+    file_path = os.path.join(DATA_DIR, 'raw_cases', f"{url.replace('/', '-')}.json")
 
     if os.path.exists(file_path):
         # print(f"File {file_path} already exists. Skipping.")
@@ -42,7 +43,7 @@ def get_transcript(url):
         file.write(json.dumps(statements))
 
 
-with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/basic.json', 'r') as file:
+with open(os.path.join(DATA_DIR, 'basic.json'), 'r') as file:
     main = json.load(file)
 
 # Pre-filter cases that have transcript URLs

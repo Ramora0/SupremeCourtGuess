@@ -2,9 +2,11 @@ import os
 import pandas as pd
 from tqdm import tqdm
 
-directory = '/Users/leedavis/coding/Python/SupremeCourtGuess/data/formatted'
+DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 
-csv_file = '/Users/leedavis/coding/Python/SupremeCourtGuess/data/output.csv'
+directory = os.path.join(DATA_DIR, 'formatted')
+
+csv_file = os.path.join(DATA_DIR, 'output.csv')
 
 data = {
     'cases': [],

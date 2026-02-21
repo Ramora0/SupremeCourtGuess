@@ -2,11 +2,14 @@ from bs4 import BeautifulSoup
 import requests
 from tqdm import tqdm
 import json
+import os
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+
+DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 
 
 def format_title(title):
@@ -17,7 +20,7 @@ def format_title(title):
 
 
 def get_case_links():
-    with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/cases.json', 'r') as file:
+    with open(os.path.join(DATA_DIR, 'cases.json'), 'r') as file:
         cases = json.loads(file.read())
 
     driver = webdriver.Chrome()
@@ -43,7 +46,7 @@ def get_case_links():
 
     driver.quit()
 
-    with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/cases.json', 'w') as file:
+    with open(os.path.join(DATA_DIR, 'cases.json'), 'w') as file:
         file.write(json.dumps(cases))
 
 

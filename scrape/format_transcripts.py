@@ -11,7 +11,7 @@ def matches_a(search, a, b):
 
 
 def get_basic(url):
-    with open('/Users/leedavis/coding/Python/SupremeCourtGuess/data/basic.json', 'r') as file:
+    with open(os.path.join(DATA_DIR, 'basic.json'), 'r') as file:
         main = json.load(file)
 
     return [case for case in main if case['transcript_url'].replace('/', '-') == url][0]
@@ -50,7 +50,8 @@ def format_text(text):
     return text
 
 
-case_path = '/Users/leedavis/coding/Python/SupremeCourtGuess/data/'
+DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
+case_path = DATA_DIR + '/'
 
 
 def get_petitioner(parties):
