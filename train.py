@@ -386,19 +386,40 @@ def evaluate_generation(model, tokenizer, eval_samples: list[dict]):
 
 class VoteAccuracyTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        print(f"\n[DEBUG] compute_loss called, input keys: {list(inputs.keys())}")
+        print(f"[DEBUG] 'vote_mask' in inputs: {'vote_mask' in inputs}")
+
+        if "vote_mask" not in inputs:
+            print("[DEBUG] vote_mask MISSING — falling back to standard loss")
+            outputs = model(**inputs)
+            return (outputs.loss, outputs) if return_outputs else outputs.loss
+
         vote_mask = inputs.pop("vote_mask")
+        print(f"[DEBUG] vote_mask shape: {vote_mask.shape}, sum: {vote_mask.sum().item()}")
+
         outputs = model(**inputs)
         loss = outputs.loss
+        print(f"[DEBUG] loss: {loss.item():.4f}")
 
-        with torch.no_grad():
-            preds = outputs.logits.argmax(dim=-1)
-            # logits are shifted: logits[i] predicts labels[i+1]
-            preds = preds[:, :-1]
-            labels = inputs["labels"][:, 1:]
-            mask = vote_mask[:, 1:].bool()
-            if mask.any():
-                acc = (preds[mask] == labels[mask]).float().mean()
-                self.log({"vote_accuracy": acc.item()})
+        if outputs.logits is None:
+            print("[DEBUG] logits is None! gradient_checkpointing may be hiding them")
+        else:
+            print(f"[DEBUG] logits shape: {outputs.logits.shape}")
+            with torch.no_grad():
+                preds = outputs.logits.argmax(dim=-1)
+                preds = preds[:, :-1]
+                labels = inputs["labels"][:, 1:]
+                mask = vote_mask[:, 1:].bool()
+                n_vote = mask.sum().item()
+                print(f"[DEBUG] shifted mask sum: {n_vote}")
+                if mask.any():
+                    correct = (preds[mask] == labels[mask]).sum().item()
+                    total = n_vote
+                    acc = correct / total
+                    print(f"[DEBUG] vote acc: {correct}/{total} = {acc:.3f}")
+                    self.log({"vote_accuracy": acc})
+                else:
+                    print("[DEBUG] mask has no True values after shift!")
 
         return (loss, outputs) if return_outputs else loss
 
