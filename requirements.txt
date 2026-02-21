@@ -23,6 +23,12 @@ spacy>=3.4.0
 transformers>=4.21.0
 torch>=1.12.0
 
+# Fine-tuning
+peft>=0.7.0
+accelerate>=0.25.0
+datasets>=2.15.0
+# flash-attn>=2.3.0  # install separately: pip install flash-attn --no-build-isolation
+
 # Graph analysis
 networkx>=2.8.0
 node2vec>=0.4.0
