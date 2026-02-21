@@ -403,7 +403,30 @@ class VoteAccuracyTrainer(Trainer):
         self._outcome_total = 0
         self._format_prob_sum = 0.0
         self._format_total = 0
+        self._majority_prob_sum = 0.0
+        self._majority_cases = 0
+        self._first_vote_prob_sum = 0.0
+        self._first_vote_total = 0
         self._micro_step = 0
+
+    @staticmethod
+    def _majority_correct_prob(probs_correct):
+        """P(>=ceil(n/2) correct) via DP over per-justice correct probs."""
+        n = len(probs_correct)
+        # dp[k] = P(exactly k correct so far)
+        dp = [0.0] * (n + 1)
+        dp[0] = 1.0
+        for p in probs_correct:
+            new_dp = [0.0] * (n + 1)
+            for k in range(n + 1):
+                if dp[k] == 0.0:
+                    continue
+                if k + 1 <= n:
+                    new_dp[k + 1] += dp[k] * p
+                new_dp[k] += dp[k] * (1.0 - p)
+            dp = new_dp
+        majority = (n // 2) + 1
+        return sum(dp[majority:])
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         vote_mask = inputs.pop("vote_mask")
@@ -431,6 +454,17 @@ class VoteAccuracyTrainer(Trainer):
                 self._format_prob_sum += vote_probs.sum().item()
                 self._format_total += v_mask.sum().item()
 
+                # First justice vote prob (no teacher forcing advantage)
+                self._first_vote_prob_sum += correct_probs[0].item()
+                self._first_vote_total += 1
+
+                # P(majority correct) per case via Poisson binomial DP
+                # batch_size=1, so correct_probs is all justices for one case
+                self._majority_prob_sum += self._majority_correct_prob(
+                    correct_probs.tolist()
+                )
+                self._majority_cases += 1
+
             o_mask = outcome_mask[:, 1:].bool()
             if o_mask.any():
                 label_ids = labels[o_mask]
@@ -447,6 +481,10 @@ class VoteAccuracyTrainer(Trainer):
                 metrics["outcome_prob"] = self._outcome_prob_sum / self._outcome_total
             if self._format_total > 0:
                 metrics["format_prob"] = self._format_prob_sum / self._format_total
+            if self._majority_cases > 0:
+                metrics["majority_correct_prob"] = self._majority_prob_sum / self._majority_cases
+            if self._first_vote_total > 0:
+                metrics["first_vote_prob"] = self._first_vote_prob_sum / self._first_vote_total
             if metrics:
                 self.log(metrics)
             self._vote_prob_sum = 0.0
@@ -455,6 +493,10 @@ class VoteAccuracyTrainer(Trainer):
             self._outcome_total = 0
             self._format_prob_sum = 0.0
             self._format_total = 0
+            self._majority_prob_sum = 0.0
+            self._majority_cases = 0
+            self._first_vote_prob_sum = 0.0
+            self._first_vote_total = 0
 
         return (loss, outputs) if return_outputs else loss
 
