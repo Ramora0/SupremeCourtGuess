@@ -29,9 +29,11 @@ VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
 EVAL_YEAR = "2019"
 
 # Training
+BATCH_SIZE = 4
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 0.01
-GRAD_ACCUM_STEPS = 8
+GRAD_ACCUM_STEPS = 4  # effective batch = BATCH_SIZE * GRAD_ACCUM_STEPS = 16
+WARMUP_RATIO = 0.05
 NUM_EPOCHS = 3
 HEAD_DIM = 256
 NUM_QUERIES_PER_JUSTICE = 8
@@ -128,6 +130,24 @@ def case_result(votes: dict[str, int]) -> int | None:
     return None
 
 
+def majority_correct_prob(probs_correct: list[float]) -> float:
+    """P(majority of votes correct) via Poisson binomial DP."""
+    n = len(probs_correct)
+    dp = [0.0] * (n + 1)
+    dp[0] = 1.0
+    for p in probs_correct:
+        new_dp = [0.0] * (n + 1)
+        for k in range(n + 1):
+            if dp[k] == 0.0:
+                continue
+            if k + 1 <= n:
+                new_dp[k + 1] += dp[k] * p
+            new_dp[k] += dp[k] * (1.0 - p)
+        dp = new_dp
+    majority = (n // 2) + 1
+    return sum(dp[majority:])
+
+
 # ── Justice Registry ──────────────────────────────────────────────────────────
 
 
@@ -166,18 +186,9 @@ class LayerWeighter(nn.Module):
         super().__init__()
         self.layer_logits = nn.Parameter(torch.zeros(num_layers))
 
-    def forward(self, hidden_states: list[torch.Tensor]) -> torch.Tensor:
-        """Weighted sum of hidden states.
-
-        Args:
-            hidden_states: list of (1, S, D) tensors (detached)
-        Returns:
-            blended: (1, S, D)
-        """
-        weights = F.softmax(self.layer_logits, dim=0)
-        stacked = torch.stack(hidden_states, dim=0)  # (L, 1, S, D)
-        blended = torch.einsum("l,lbsd->bsd", weights, stacked)
-        return blended
+    def weights(self) -> torch.Tensor:
+        """Return softmax-normalized layer weights."""
+        return F.softmax(self.layer_logits, dim=0)
 
 
 class JusticeEmbeddings(nn.Module):
@@ -344,7 +355,7 @@ class SCOTUSVoteHead(nn.Module):
     def get_layer_weights(self) -> torch.Tensor:
         """Return current softmax layer weights for logging."""
         with torch.no_grad():
-            return F.softmax(self.layer_weighter.layer_logits, dim=0)
+            return self.layer_weighter.weights()
 
 
 # ── Backbone setup ────────────────────────────────────────────────────────────
@@ -382,41 +393,69 @@ def load_frozen_backbone(model_name: str, quantize: bool = True):
     return model, tokenizer
 
 
-def get_blended_hidden_state(
+def get_blended_hidden_states(
     backbone,
     tokenizer,
-    text: str,
+    texts: list[str],
     max_length: int,
     device: torch.device,
     layer_weighter: LayerWeighter,
-) -> torch.Tensor:
-    """Run frozen backbone, blend hidden states immediately, free the rest.
+) -> list[torch.Tensor]:
+    """Run frozen backbone on a batch, blend hidden states incrementally.
 
-    This keeps only one (1, S, D) tensor alive instead of all 29 layers,
-    cutting peak hidden-state memory from ~6.8GB to ~234MB (for 7B, 16K seq).
+    Tokenizes and pads a batch of texts, runs one batched backbone forward,
+    then blends layers one at a time to minimize memory. Returns a list of
+    per-sample blended tensors (unpadded to original lengths).
+
+    Peak hidden-state overhead: ~2 × (B, S_max, D) in float32 instead of 29×.
     """
-    input_ids = tokenizer.encode(text, add_special_tokens=False)
+    # Tokenize each text, left-truncate
+    all_ids = []
+    lengths = []
+    for text in texts:
+        ids = tokenizer.encode(text, add_special_tokens=False)
+        if len(ids) > max_length:
+            ids = ids[-max_length:]
+        all_ids.append(ids)
+        lengths.append(len(ids))
 
-    # Left-truncate to max_length
-    if len(input_ids) > max_length:
-        input_ids = input_ids[-max_length:]
-
-    input_tensor = torch.tensor([input_ids], device=device)
+    # Pad to max length in batch (right-pad)
+    max_len = max(lengths)
+    pad_id = tokenizer.pad_token_id
+    padded = [ids + [pad_id] * (max_len - len(ids)) for ids in all_ids]
+    input_tensor = torch.tensor(padded, device=device)  # (B, S_max)
+    attention_mask = torch.tensor(
+        [[1] * l + [0] * (max_len - l) for l in lengths],
+        device=device,
+    )  # (B, S_max)
 
     with torch.no_grad():
-        outputs = backbone(input_ids=input_tensor, output_hidden_states=True)
+        outputs = backbone(
+            input_ids=input_tensor,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+        )
 
-    # Detach and convert to float32, then blend immediately
-    hidden_states = [h.detach().float() for h in outputs.hidden_states]
-    del outputs
+    # Blend incrementally: one layer at a time
+    weights = layer_weighter.weights()  # (num_layers,)
+    blended = None
+    for i, h in enumerate(outputs.hidden_states):
+        weighted = weights[i] * h.detach().float()  # (B, S_max, D)
+        if blended is None:
+            blended = weighted
+        else:
+            blended += weighted
+        del weighted
 
-    blended = layer_weighter(hidden_states)  # (1, S, D)
-
-    # Free the 29 individual hidden state tensors
-    del hidden_states
+    del outputs, input_tensor, attention_mask
     torch.cuda.empty_cache()
 
-    return blended
+    # Unpad: return list of (1, S_i, D) tensors per sample
+    result = []
+    for b, l in enumerate(lengths):
+        result.append(blended[b:b+1, :l, :])  # (1, S_i, D)
+
+    return result
 
 
 # ── Training ──────────────────────────────────────────────────────────────────
@@ -457,7 +496,9 @@ def train():
             "model": args.model,
             "lr": args.lr,
             "epochs": args.epochs,
+            "batch_size": BATCH_SIZE,
             "grad_accum": GRAD_ACCUM_STEPS,
+            "effective_batch": BATCH_SIZE * GRAD_ACCUM_STEPS,
             "head_dim": HEAD_DIM,
             "num_queries": NUM_QUERIES_PER_JUSTICE,
             "self_attn_layers": SELF_ATTN_LAYERS,
@@ -491,14 +532,21 @@ def train():
     total_params = sum(p.numel() for p in head.parameters() if p.requires_grad)
     print(f"Trainable head parameters: {total_params:,}")
 
-    # Optimizer and scheduler
+    # Optimizer and scheduler (linear warmup + cosine decay)
     optimizer = torch.optim.AdamW(
         head.parameters(), lr=args.lr, weight_decay=WEIGHT_DECAY
     )
-    total_steps = (len(train_samples) * args.epochs) // GRAD_ACCUM_STEPS
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=total_steps, eta_min=1e-6
-    )
+    effective_batch = BATCH_SIZE * GRAD_ACCUM_STEPS
+    total_steps = (len(train_samples) * args.epochs) // effective_batch
+    warmup_steps = int(total_steps * WARMUP_RATIO)
+
+    def lr_lambda(step):
+        if step < warmup_steps:
+            return step / max(warmup_steps, 1)
+        progress = (step - warmup_steps) / max(total_steps - warmup_steps, 1)
+        return max(1e-6 / args.lr, 0.5 * (1.0 + math.cos(math.pi * progress)))
+
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     # Training loop
     global_step = 0
@@ -507,83 +555,101 @@ def train():
     accum_total = 0
     accum_case_correct = 0
     accum_cases = 0
+    accum_vote_prob_sum = 0.0  # estimated: sum of P(correct vote)
+    accum_vote_prob_n = 0
+    accum_case_prob_sum = 0.0  # estimated: sum of P(majority correct)
+    accum_case_prob_n = 0
+    micro_step = 0  # counts batches within a grad accum window
 
     for epoch in range(args.epochs):
         head.train()
-        pbar = tqdm(train_samples, desc=f"Epoch {epoch+1}/{args.epochs}")
+        num_batches = (len(train_samples) + BATCH_SIZE - 1) // BATCH_SIZE
+        pbar = tqdm(range(num_batches), desc=f"Epoch {epoch+1}/{args.epochs}")
 
-        for i, sample in enumerate(pbar):
-            # Get blended transcript representation (memory-efficient)
-            blended = get_blended_hidden_state(
-                backbone, tokenizer, sample["transcript"],
+        for batch_idx in pbar:
+            batch_start = batch_idx * BATCH_SIZE
+            batch_samples = train_samples[batch_start : batch_start + BATCH_SIZE]
+
+            # Batched backbone forward + incremental blend
+            blended_list = get_blended_hidden_states(
+                backbone, tokenizer,
+                [s["transcript"] for s in batch_samples],
                 MAX_SEQ_LENGTH, device, head.layer_weighter,
             )
 
-            # Prepare justice IDs and labels
-            justice_names = list(sample["votes"].keys())
-            justice_ids = torch.tensor(
-                [registry.get_or_add(n) for n in justice_names],
-                device=device,
-            )
-            labels = torch.tensor(
-                [sample["votes"][n] for n in justice_names],
-                device=device, dtype=torch.long,
-            )
+            # Process each sample in the batch through the head
+            batch_loss = 0.0
+            for sample, blended in zip(batch_samples, blended_list):
+                justice_names = list(sample["votes"].keys())
+                justice_ids = torch.tensor(
+                    [registry.get_or_add(n) for n in justice_names],
+                    device=device,
+                )
+                labels = torch.tensor(
+                    [sample["votes"][n] for n in justice_names],
+                    device=device, dtype=torch.long,
+                )
 
-            # Forward through head
-            logits = head(blended, justice_ids)  # (J, 2)
+                logits = head(blended, justice_ids)  # (J, 2)
+                loss = F.cross_entropy(logits, labels) / (GRAD_ACCUM_STEPS * len(batch_samples))
+                loss.backward()
+                batch_loss += loss.item() * GRAD_ACCUM_STEPS * len(batch_samples)
 
-            del blended
+                with torch.no_grad():
+                    preds = logits.argmax(dim=1)
+                    accum_correct += (preds == labels).sum().item()
+                    accum_total += len(labels)
 
-            # Loss averaged over justices
-            loss = F.cross_entropy(logits, labels) / GRAD_ACCUM_STEPS
+                    # Estimated accuracy: P(correct) per vote from softmax
+                    probs = logits.softmax(dim=1)  # (J, 2)
+                    correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
+                    accum_vote_prob_sum += correct_probs.sum().item()
+                    accum_vote_prob_n += len(labels)
 
-            loss.backward()
+                    # Case level
+                    pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
+                    true_majority = case_result(sample["votes"])
+                    if true_majority is not None:
+                        accum_case_correct += int(pred_majority == true_majority)
+                        accum_cases += 1
+                        accum_case_prob_sum += majority_correct_prob(correct_probs.tolist())
+                        accum_case_prob_n += 1
 
-            # Track metrics
-            with torch.no_grad():
-                preds = logits.argmax(dim=1)
-                correct = (preds == labels).sum().item()
-                accum_correct += correct
-                accum_total += len(labels)
-                accum_loss += loss.item() * GRAD_ACCUM_STEPS
+            del blended_list
+            accum_loss += batch_loss / len(batch_samples)
+            micro_step += 1
 
-                # Case accuracy (majority vote)
-                pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
-                true_majority = case_result(sample["votes"])
-                if true_majority is not None:
-                    accum_case_correct += int(pred_majority == true_majority)
-                    accum_cases += 1
-
-            # Gradient accumulation step
-            if (i + 1) % GRAD_ACCUM_STEPS == 0 or (i + 1) == len(train_samples):
+            # Optimizer step after GRAD_ACCUM_STEPS micro-batches
+            if micro_step % GRAD_ACCUM_STEPS == 0 or (batch_idx + 1) == num_batches:
                 nn.utils.clip_grad_norm_(head.parameters(), 1.0)
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
                 global_step += 1
 
-                # Log to wandb
                 layer_weights = head.get_layer_weights()
+                num_accum = micro_step if micro_step <= GRAD_ACCUM_STEPS else GRAD_ACCUM_STEPS
                 metrics = {
-                    "train/loss": accum_loss / GRAD_ACCUM_STEPS,
-                    "train/vote_acc": accum_correct / max(accum_total, 1),
-                    "train/case_acc": accum_case_correct / max(accum_cases, 1),
+                    "train/loss": accum_loss / num_accum,
+                    "train/greedy_vote_acc": accum_correct / max(accum_total, 1),
+                    "train/greedy_case_acc": accum_case_correct / max(accum_cases, 1),
+                    "train/est_vote_acc": accum_vote_prob_sum / max(accum_vote_prob_n, 1),
+                    "train/est_case_acc": accum_case_prob_sum / max(accum_case_prob_n, 1),
                     "train/lr": scheduler.get_last_lr()[0],
                     "train/step": global_step,
                 }
-                # Log top-5 layer weights
                 top_vals, top_idx = layer_weights.topk(5)
                 for rank, (val, idx) in enumerate(zip(top_vals, top_idx)):
                     metrics[f"layers/top{rank+1}_layer"] = idx.item()
                     metrics[f"layers/top{rank+1}_weight"] = val.item()
 
                 wandb.log(metrics, step=global_step)
-
                 pbar.set_postfix(
-                    loss=f"{accum_loss / GRAD_ACCUM_STEPS:.4f}",
-                    vacc=f"{accum_correct / max(accum_total, 1):.3f}",
-                    cacc=f"{accum_case_correct / max(accum_cases, 1):.3f}",
+                    loss=f"{accum_loss / num_accum:.4f}",
+                    gv=f"{accum_correct / max(accum_total, 1):.3f}",
+                    ev=f"{accum_vote_prob_sum / max(accum_vote_prob_n, 1):.3f}",
+                    gc=f"{accum_case_correct / max(accum_cases, 1):.3f}",
+                    ec=f"{accum_case_prob_sum / max(accum_case_prob_n, 1):.3f}",
                 )
 
                 accum_loss = 0.0
@@ -591,6 +657,11 @@ def train():
                 accum_total = 0
                 accum_case_correct = 0
                 accum_cases = 0
+                accum_vote_prob_sum = 0.0
+                accum_vote_prob_n = 0
+                accum_case_prob_sum = 0.0
+                accum_case_prob_n = 0
+                micro_step = 0
 
         # End of epoch evaluation
         if eval_samples:
@@ -634,61 +705,81 @@ def evaluate(
 ):
     head.eval()
     all_justice_results: dict[str, list[bool]] = {}
+    all_justice_probs: dict[str, list[float]] = {}  # estimated P(correct) per justice
     case_results_list: list[bool] = []
+    case_prob_list: list[float] = []  # estimated P(majority correct) per case
 
     print(f"\n── Evaluation ({len(eval_samples)} cases, epoch {epoch+1}) ──\n")
 
-    for sample in tqdm(eval_samples, desc="Evaluating"):
-        blended = get_blended_hidden_state(
-            backbone, tokenizer, sample["transcript"],
+    num_batches = (len(eval_samples) + BATCH_SIZE - 1) // BATCH_SIZE
+    for batch_idx in tqdm(range(num_batches), desc="Evaluating"):
+        batch_start = batch_idx * BATCH_SIZE
+        batch_samples = eval_samples[batch_start : batch_start + BATCH_SIZE]
+
+        blended_list = get_blended_hidden_states(
+            backbone, tokenizer,
+            [s["transcript"] for s in batch_samples],
             MAX_SEQ_LENGTH, device, head.layer_weighter,
         )
 
-        justice_names = list(sample["votes"].keys())
-        justice_ids = torch.tensor(
-            [registry.get_or_add(n) for n in justice_names],
-            device=device,
-        )
-        labels = torch.tensor(
-            [sample["votes"][n] for n in justice_names],
-            device=device, dtype=torch.long,
-        )
+        for sample, blended in zip(batch_samples, blended_list):
+            justice_names = list(sample["votes"].keys())
+            justice_ids = torch.tensor(
+                [registry.get_or_add(n) for n in justice_names],
+                device=device,
+            )
+            labels = torch.tensor(
+                [sample["votes"][n] for n in justice_names],
+                device=device, dtype=torch.long,
+            )
 
-        logits = head(blended, justice_ids)
-        preds = logits.argmax(dim=1)
+            logits = head(blended, justice_ids)
+            preds = logits.argmax(dim=1)
+            probs = logits.softmax(dim=1)  # (J, 2)
+            correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
 
-        del blended
+            # Per-justice accuracy (greedy + estimated)
+            for j, name in enumerate(justice_names):
+                correct = (preds[j] == labels[j]).item()
+                if name not in all_justice_results:
+                    all_justice_results[name] = []
+                    all_justice_probs[name] = []
+                all_justice_results[name].append(correct)
+                all_justice_probs[name].append(correct_probs[j].item())
 
-        # Per-justice accuracy
-        for j, name in enumerate(justice_names):
-            correct = (preds[j] == labels[j]).item()
-            if name not in all_justice_results:
-                all_justice_results[name] = []
-            all_justice_results[name].append(correct)
+            # Case accuracy (greedy + estimated)
+            pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
+            true_majority = case_result(sample["votes"])
+            if true_majority is not None:
+                case_results_list.append(pred_majority == true_majority)
+                case_prob_list.append(majority_correct_prob(correct_probs.tolist()))
 
-        # Case accuracy
-        pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
-        true_majority = case_result(sample["votes"])
-        if true_majority is not None:
-            case_results_list.append(pred_majority == true_majority)
+        del blended_list
 
     # Summary
-    print("\n  Justice vote accuracy:")
+    print("\n  Justice vote accuracy (greedy / estimated):")
     total_correct = 0
     total_counted = 0
+    total_prob_sum = 0.0
     for justice in sorted(all_justice_results):
         results = all_justice_results[justice]
-        acc = sum(results) / len(results)
+        probs = all_justice_probs[justice]
+        greedy = sum(results) / len(results)
+        est = sum(probs) / len(probs)
         total_correct += sum(results)
         total_counted += len(results)
-        print(f"    {justice:30s}: {acc:5.1%} ({sum(results)}/{len(results)})")
+        total_prob_sum += sum(probs)
+        print(f"    {justice:30s}: {greedy:5.1%} / {est:5.1%}  ({len(results)} votes)")
 
-    vote_acc = total_correct / max(total_counted, 1)
-    print(f"    {'OVERALL':30s}: {vote_acc:5.1%} ({total_correct}/{total_counted})")
+    greedy_vote_acc = total_correct / max(total_counted, 1)
+    est_vote_acc = total_prob_sum / max(total_counted, 1)
+    print(f"    {'OVERALL':30s}: {greedy_vote_acc:5.1%} / {est_vote_acc:5.1%}")
 
-    case_acc = sum(case_results_list) / max(len(case_results_list), 1)
-    print(f"\n  Case accuracy: {case_acc:5.1%} "
-          f"({sum(case_results_list)}/{len(case_results_list)})")
+    greedy_case_acc = sum(case_results_list) / max(len(case_results_list), 1)
+    est_case_acc = sum(case_prob_list) / max(len(case_prob_list), 1)
+    print(f"\n  Case accuracy (greedy / estimated): "
+          f"{greedy_case_acc:5.1%} / {est_case_acc:5.1%}  "
+          f"({len(case_results_list)} cases)")
 
     # Log layer weights
     layer_weights = head.get_layer_weights()
@@ -698,12 +789,16 @@ def evaluate(
         print(f"    Layer {idx.item():2d}: {val.item():.4f}")
 
     eval_metrics = {
-        "eval/vote_acc": vote_acc,
-        "eval/case_acc": case_acc,
+        "eval/greedy_vote_acc": greedy_vote_acc,
+        "eval/greedy_case_acc": greedy_case_acc,
+        "eval/est_vote_acc": est_vote_acc,
+        "eval/est_case_acc": est_case_acc,
     }
     for justice in sorted(all_justice_results):
         results = all_justice_results[justice]
-        eval_metrics[f"eval/justice/{justice}"] = sum(results) / len(results)
+        probs = all_justice_probs[justice]
+        eval_metrics[f"eval/justice_greedy/{justice}"] = sum(results) / len(results)
+        eval_metrics[f"eval/justice_est/{justice}"] = sum(probs) / len(probs)
     wandb.log(eval_metrics, step=global_step)
 
     head.train()
