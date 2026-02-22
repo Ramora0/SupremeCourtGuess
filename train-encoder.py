@@ -916,6 +916,10 @@ def train():
     run_name = args.run_name or f"encoder-{args.encoder}"
     head_lr = args.head_lr if args.head_lr > 0 else args.lr * 10
 
+    # Use TF32 for float32 matmuls (~30% faster on A100, negligible precision loss)
+    if device.type == "cuda":
+        torch.set_float32_matmul_precision("medium")
+
     # AMP context for encoder forward passes
     amp_ctx = (
         torch.amp.autocast("cuda", dtype=torch.bfloat16)
@@ -963,6 +967,10 @@ def train():
     )
     max_length = args.max_length if args.max_length > 0 else model_max_length
     encoder.to(device)
+
+    # Compile encoder for fused CUDA kernels (first batch is slow, rest faster)
+    if device.type == "cuda":
+        encoder = torch.compile(encoder)
 
     # Build head
     model = SCOTUSEncoderModel(
