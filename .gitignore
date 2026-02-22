@@ -4,4 +4,6 @@ data/
 
 /case_transcripts
 case_transcripts_cleaned/
+case_transcripts_renamed/
+case_transcripts_old/
 /venv
