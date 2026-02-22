@@ -569,6 +569,8 @@ def train():
 
             # Process each sample in the batch through the head
             batch_loss = 0.0
+            accumulated_loss = None
+            sample_logits_labels = []
             for sample, blended in zip(batch_samples, blended_list):
                 justice_names = list(sample["votes"].keys())
                 justice_ids = torch.tensor(
@@ -582,28 +584,34 @@ def train():
 
                 logits = head(blended, justice_ids)  # (J, 2)
                 loss = F.cross_entropy(logits, labels) / (GRAD_ACCUM_STEPS * len(batch_samples))
-                loss.backward()
+                accumulated_loss = loss if accumulated_loss is None else accumulated_loss + loss
                 batch_loss += loss.item() * GRAD_ACCUM_STEPS * len(batch_samples)
+                sample_logits_labels.append((logits.detach(), labels, sample))
 
-                with torch.no_grad():
-                    preds = logits.argmax(dim=1)
-                    accum_correct += (preds == labels).sum().item()
-                    accum_total += len(labels)
+            accumulated_loss.backward()
+            del accumulated_loss
 
-                    # Estimated accuracy: P(correct) per vote from softmax
-                    probs = logits.softmax(dim=1)  # (J, 2)
-                    correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
-                    accum_vote_prob_sum += correct_probs.sum().item()
-                    accum_vote_prob_n += len(labels)
+            # Compute metrics (no grad needed, logits already detached)
+            for logits, labels, sample in sample_logits_labels:
+                preds = logits.argmax(dim=1)
+                accum_correct += (preds == labels).sum().item()
+                accum_total += len(labels)
 
-                    # Case level
-                    pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
-                    true_majority = case_result(sample["votes"])
-                    if true_majority is not None:
-                        accum_case_correct += int(pred_majority == true_majority)
-                        accum_cases += 1
-                        accum_case_prob_sum += majority_correct_prob(correct_probs.tolist())
-                        accum_case_prob_n += 1
+                # Estimated accuracy: P(correct) per vote from softmax
+                probs = logits.softmax(dim=1)  # (J, 2)
+                correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
+                accum_vote_prob_sum += correct_probs.sum().item()
+                accum_vote_prob_n += len(labels)
+
+                # Case level
+                pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
+                true_majority = case_result(sample["votes"])
+                if true_majority is not None:
+                    accum_case_correct += int(pred_majority == true_majority)
+                    accum_cases += 1
+                    accum_case_prob_sum += majority_correct_prob(correct_probs.tolist())
+                    accum_case_prob_n += 1
+            del sample_logits_labels
 
             del blended_list
             accum_loss += batch_loss / len(batch_samples)
