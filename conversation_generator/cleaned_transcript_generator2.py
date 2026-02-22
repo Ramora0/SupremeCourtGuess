@@ -22,6 +22,7 @@ from convokit import Corpus, download
 from tqdm import tqdm
 
 from corpus_case_info import download_cases_jsonl, get_case_legal_info_from_corpus
+from scdb_matcher import format_scdb_header, get_scdb_case_row
 
 MAX_UTTERANCES = int(os.environ.get("MAX_UTTERANCES", 0)) or None
 
@@ -376,8 +377,15 @@ def process_case(
     case_id: str,
     normalize_speakers: bool = True,
     merge_same_speaker: bool = False,
-) -> str:
-    """Produce cleaned transcript for one case: convo -> raw -> clean; prepend decided date."""
+) -> str | None:
+    """Produce cleaned transcript for one case: convo -> raw -> clean; prepend SCDB header + decided date.
+
+    Returns None if the case has no SCDB match (caller should skip it).
+    """
+    scdb_header = format_scdb_header(str(case_id))
+    if scdb_header is None:
+        return None
+
     raw = convo_to_raw_transcript(convo)
     body = clean_transcript(
         raw,
@@ -386,8 +394,12 @@ def process_case(
     )
     legal = get_case_legal_info_from_corpus(str(case_id))
     decided_date = (legal or {}).get("decided_date")
+
+    # Build header: SCDB metadata, then decided date, then transcript
+    header = scdb_header
     if decided_date:
-        body = f"DECIDED: {decided_date}\n\n{body}"
+        header += f"\nDECIDED: {decided_date}"
+    body = f"{header}\n\n{body}"
     return body
 
 
@@ -452,6 +464,7 @@ def main() -> None:
     normalize_speakers = not args.no_normalize_speakers
     merge_same_speaker = args.merge_same_speaker
     seen_case_ids = set()
+    skipped_no_scdb = 0
 
     for i, convo_id in tqdm(enumerate(convo_ids, 1), total=len(convo_ids), desc="Processing cases"):
         convo = corpus.get_conversation(convo_id)
@@ -468,12 +481,18 @@ def main() -> None:
                 normalize_speakers=normalize_speakers,
                 merge_same_speaker=merge_same_speaker,
             )
+            if text is None:
+                skipped_no_scdb += 1
+                continue
             out_path.write_text(text, encoding="utf-8")
         except Exception as e:
             print(f"  Skip {case_id}: {e}", file=sys.stderr)
             continue
         if i % 100 == 0 or i == len(convo_ids):
             print(f"  {i}/{len(convo_ids)}", file=sys.stderr)
+
+    if skipped_no_scdb:
+        print(f"Skipped {skipped_no_scdb} case(s) with no SCDB match.", file=sys.stderr)
 
     if not args.keep_no_justice:
         removed = remove_transcripts_without_justice_decisions(out_dir)
