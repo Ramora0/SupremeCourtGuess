@@ -511,6 +511,7 @@ def train_epoch(
         )
         B = chunk_embeddings.shape[0]
 
+        batch_loss_tensor = torch.tensor(0.0, device=device)
         batch_loss = 0.0
         for i in range(B):
             justice_names = list(votes_list[i].keys())
@@ -528,7 +529,7 @@ def train_epoch(
             mask_i = chunk_mask_batch[i]
             logits = head(blended_i, mask_i, justice_ids)
             loss = F.cross_entropy(logits, labels) / (grad_accum_steps * B)
-            loss.backward()
+            batch_loss_tensor = batch_loss_tensor + loss
             batch_loss += loss.item() * grad_accum_steps * B
             with torch.no_grad():
                 preds = logits.argmax(dim=1)
@@ -543,6 +544,7 @@ def train_epoch(
                     accum_cases += 1
                     epoch_case_correct += int(pred_maj == true_maj)
                     epoch_cases += 1
+        batch_loss_tensor.backward()
 
         accum_loss += batch_loss / B
         epoch_loss_sum += batch_loss / B
