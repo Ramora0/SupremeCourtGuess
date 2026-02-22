@@ -38,6 +38,7 @@ NUM_EPOCHS = 3
 HEAD_DIM = 64
 NUM_QUERIES_PER_JUSTICE = 4
 SELF_ATTN_LAYERS = 1
+LOG_EVERY_STEPS = 8  # log metrics averaged over this many optimizer steps
 SELF_ATTN_FFN_DIM = 256
 MAX_JUSTICES = 128
 
@@ -481,6 +482,30 @@ def parse_args():
         "--lr", type=float, default=LEARNING_RATE,
         help=f"Learning rate (default: {LEARNING_RATE})",
     )
+    parser.add_argument(
+        "--run-name", type=str, default=None,
+        help="W&B run name (default: auto-generated)",
+    )
+    parser.add_argument(
+        "--grad-accum", type=int, default=GRAD_ACCUM_STEPS,
+        help=f"Gradient accumulation steps (default: {GRAD_ACCUM_STEPS})",
+    )
+    parser.add_argument(
+        "--head-dim", type=int, default=HEAD_DIM,
+        help=f"Head dimension (default: {HEAD_DIM})",
+    )
+    parser.add_argument(
+        "--num-queries", type=int, default=NUM_QUERIES_PER_JUSTICE,
+        help=f"Number of query vectors per justice (default: {NUM_QUERIES_PER_JUSTICE})",
+    )
+    parser.add_argument(
+        "--self-attn-layers", type=int, default=SELF_ATTN_LAYERS,
+        help=f"Self-attention layers (default: {SELF_ATTN_LAYERS})",
+    )
+    parser.add_argument(
+        "--ffn-dim", type=int, default=SELF_ATTN_FFN_DIM,
+        help=f"Self-attention FFN dim (default: {SELF_ATTN_FFN_DIM})",
+    )
     return parser.parse_args()
 
 
@@ -491,17 +516,18 @@ def train():
     os.environ.setdefault("WANDB_PROJECT", "supreme-court")
     wandb.init(
         project="supreme-court",
-        name=f"scotus-crossattn-{args.model}",
+        name=args.run_name or f"scotus-crossattn-{args.model}",
         config={
             "model": args.model,
             "lr": args.lr,
             "epochs": args.epochs,
             "batch_size": BATCH_SIZE,
-            "grad_accum": GRAD_ACCUM_STEPS,
-            "effective_batch": BATCH_SIZE * GRAD_ACCUM_STEPS,
-            "head_dim": HEAD_DIM,
-            "num_queries": NUM_QUERIES_PER_JUSTICE,
-            "self_attn_layers": SELF_ATTN_LAYERS,
+            "grad_accum": args.grad_accum,
+            "effective_batch": BATCH_SIZE * args.grad_accum,
+            "head_dim": args.head_dim,
+            "num_queries": args.num_queries,
+            "self_attn_layers": args.self_attn_layers,
+            "ffn_dim": args.ffn_dim,
             "max_seq_length": MAX_SEQ_LENGTH,
         },
     )
@@ -527,6 +553,10 @@ def train():
     head = SCOTUSVoteHead(
         num_llm_layers=num_llm_layers,
         llm_dim=llm_dim,
+        head_dim=args.head_dim,
+        num_queries=args.num_queries,
+        self_attn_layers=args.self_attn_layers,
+        self_attn_ffn_dim=args.ffn_dim,
     ).to(device).float()
 
     total_params = sum(p.numel() for p in head.parameters() if p.requires_grad)
@@ -536,7 +566,7 @@ def train():
     optimizer = torch.optim.AdamW(
         head.parameters(), lr=args.lr, weight_decay=WEIGHT_DECAY
     )
-    effective_batch = BATCH_SIZE * GRAD_ACCUM_STEPS
+    effective_batch = BATCH_SIZE * args.grad_accum
     total_steps = (len(train_samples) * args.epochs) // effective_batch
     warmup_steps = int(total_steps * WARMUP_RATIO)
 
@@ -559,6 +589,8 @@ def train():
     accum_vote_prob_n = 0
     accum_case_prob_sum = 0.0  # estimated: sum of P(majority correct)
     accum_case_prob_n = 0
+    log_steps_accum = 0  # counts optimizer steps since last log
+    log_micro_batches = 0  # counts micro-batches since last log (for loss avg)
     micro_step = 0  # counts batches within a grad accum window
 
     for epoch in range(args.epochs):
@@ -593,9 +625,9 @@ def train():
                 )
 
                 logits = head(blended, justice_ids)  # (J, 2)
-                loss = F.cross_entropy(logits, labels) / (GRAD_ACCUM_STEPS * len(batch_samples))
+                loss = F.cross_entropy(logits, labels) / (args.grad_accum * len(batch_samples))
                 accumulated_loss = loss if accumulated_loss is None else accumulated_loss + loss
-                batch_loss += loss.item() * GRAD_ACCUM_STEPS * len(batch_samples)
+                batch_loss += loss.item() * args.grad_accum * len(batch_samples)
                 sample_logits_labels.append((logits.detach(), labels, sample))
 
             accumulated_loss.backward()
@@ -625,50 +657,57 @@ def train():
 
             del blended_list
             accum_loss += batch_loss / len(batch_samples)
+            log_micro_batches += 1
             micro_step += 1
 
-            # Optimizer step after GRAD_ACCUM_STEPS micro-batches
-            if micro_step % GRAD_ACCUM_STEPS == 0 or (batch_idx + 1) == num_batches:
+            # Optimizer step after grad_accum micro-batches
+            if micro_step % args.grad_accum == 0 or (batch_idx + 1) == num_batches:
                 nn.utils.clip_grad_norm_(head.parameters(), 1.0)
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
                 global_step += 1
 
-                layer_weights = head.get_layer_weights()
-                num_accum = micro_step if micro_step <= GRAD_ACCUM_STEPS else GRAD_ACCUM_STEPS
-                metrics = {
-                    "train/loss": accum_loss / num_accum,
-                    "train/greedy_vote_acc": accum_correct / max(accum_total, 1),
-                    "train/greedy_case_acc": accum_case_correct / max(accum_cases, 1),
-                    "train/est_vote_acc": accum_vote_prob_sum / max(accum_vote_prob_n, 1),
-                    "train/est_case_acc": accum_case_prob_sum / max(accum_case_prob_n, 1),
-                    "train/lr": scheduler.get_last_lr()[0],
-                    "train/step": global_step,
-                }
-                top_vals, top_idx = layer_weights.topk(5)
-                for rank, (val, idx) in enumerate(zip(top_vals, top_idx)):
-                    metrics[f"layers/top{rank+1}_layer"] = idx.item()
-                    metrics[f"layers/top{rank+1}_weight"] = val.item()
+                log_steps_accum += 1
 
-                wandb.log(metrics, step=global_step)
-                pbar.set_postfix(
-                    loss=f"{accum_loss / num_accum:.4f}",
-                    gv=f"{accum_correct / max(accum_total, 1):.3f}",
-                    ev=f"{accum_vote_prob_sum / max(accum_vote_prob_n, 1):.3f}",
-                    gc=f"{accum_case_correct / max(accum_cases, 1):.3f}",
-                    ec=f"{accum_case_prob_sum / max(accum_case_prob_n, 1):.3f}",
-                )
+                # Log metrics averaged over LOG_EVERY_STEPS optimizer steps
+                if log_steps_accum >= LOG_EVERY_STEPS or (batch_idx + 1) == num_batches:
+                    layer_weights = head.get_layer_weights()
+                    metrics = {
+                        "train/loss": accum_loss / max(log_micro_batches, 1),
+                        "train/greedy_vote_acc": accum_correct / max(accum_total, 1),
+                        "train/greedy_case_acc": accum_case_correct / max(accum_cases, 1),
+                        "train/est_vote_acc": accum_vote_prob_sum / max(accum_vote_prob_n, 1),
+                        "train/est_case_acc": accum_case_prob_sum / max(accum_case_prob_n, 1),
+                        "train/lr": scheduler.get_last_lr()[0],
+                        "train/step": global_step,
+                    }
+                    top_vals, top_idx = layer_weights.topk(5)
+                    for rank, (val, idx) in enumerate(zip(top_vals, top_idx)):
+                        metrics[f"layers/top{rank+1}_layer"] = idx.item()
+                        metrics[f"layers/top{rank+1}_weight"] = val.item()
 
-                accum_loss = 0.0
-                accum_correct = 0
-                accum_total = 0
-                accum_case_correct = 0
-                accum_cases = 0
-                accum_vote_prob_sum = 0.0
-                accum_vote_prob_n = 0
-                accum_case_prob_sum = 0.0
-                accum_case_prob_n = 0
+                    wandb.log(metrics, step=global_step)
+                    pbar.set_postfix(
+                        loss=f"{accum_loss / max(log_micro_batches, 1):.4f}",
+                        gv=f"{accum_correct / max(accum_total, 1):.3f}",
+                        ev=f"{accum_vote_prob_sum / max(accum_vote_prob_n, 1):.3f}",
+                        gc=f"{accum_case_correct / max(accum_cases, 1):.3f}",
+                        ec=f"{accum_case_prob_sum / max(accum_case_prob_n, 1):.3f}",
+                    )
+
+                    accum_loss = 0.0
+                    accum_correct = 0
+                    accum_total = 0
+                    accum_case_correct = 0
+                    accum_cases = 0
+                    accum_vote_prob_sum = 0.0
+                    accum_vote_prob_n = 0
+                    accum_case_prob_sum = 0.0
+                    accum_case_prob_n = 0
+                    log_steps_accum = 0
+                    log_micro_batches = 0
+
                 micro_step = 0
 
         # End of epoch evaluation
@@ -677,7 +716,8 @@ def train():
                      global_step, epoch)
 
     # Save head weights
-    save_path = f"output/scotus-crossattn-{args.model}.pt"
+    run_name = args.run_name or f"scotus-crossattn-{args.model}"
+    save_path = f"output/{run_name}.pt"
     os.makedirs("output", exist_ok=True)
     torch.save({
         "head_state_dict": head.state_dict(),
@@ -685,10 +725,10 @@ def train():
         "config": {
             "num_llm_layers": num_llm_layers,
             "llm_dim": llm_dim,
-            "head_dim": HEAD_DIM,
-            "num_queries": NUM_QUERIES_PER_JUSTICE,
-            "self_attn_layers": SELF_ATTN_LAYERS,
-            "self_attn_ffn_dim": SELF_ATTN_FFN_DIM,
+            "head_dim": args.head_dim,
+            "num_queries": args.num_queries,
+            "self_attn_layers": args.self_attn_layers,
+            "self_attn_ffn_dim": args.ffn_dim,
             "max_justices": MAX_JUSTICES,
         },
     }, save_path)
