@@ -44,7 +44,7 @@ LEARNING_RATE = 5e-5
 NUM_EPOCHS = 1
 WARMUP_RATIO = 0.05
 
-DATA_DIR = "case_transcripts_cleaned"
+DATA_DIR = "case_transcripts_clean"
 MAX_TOKENS_DISCARD = 15000
 OUTPUT_DIR = "output/scotus-lora"
 
