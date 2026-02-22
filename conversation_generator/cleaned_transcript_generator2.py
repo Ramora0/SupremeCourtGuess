@@ -49,7 +49,9 @@ KNOWN_JUSTICE_LAST_NAMES = {
     "Washington", "Wayne", "White", "Whittaker", "Wilson", "Woodbury", "Woods",
 }
 NAME_SUFFIXES = frozenset({"Jr.", "Jr", "Sr.", "Sr", "II", "III", "IV", "V"})
-KNOWN_SPEAKERS = {PETITIONER, RESPONDENT, "Jr."} | KNOWN_JUSTICE_LAST_NAMES
+# ConvoKit uses "Unknown" for unrecognized speakers; must be recognized when re-parsing
+UNKNOWN_SPEAKER_LABELS = {"Unknown"}
+KNOWN_SPEAKERS = {PETITIONER, RESPONDENT, "Jr."} | KNOWN_JUSTICE_LAST_NAMES | UNKNOWN_SPEAKER_LABELS
 
 
 # ---------------------------------------------------------------------------
@@ -210,8 +212,8 @@ def format_text(text: str) -> str:
 
 
 def format_speaker(speaker: str) -> str:
-    """Normalize speaker label: keep Petitioner/Respondent; else remove Jr./II/III/commas, use last name."""
-    if speaker in (PETITIONER, RESPONDENT):
+    """Normalize speaker label: keep Petitioner/Respondent/Unknown; else remove Jr./II/III/commas, use last name."""
+    if speaker in (PETITIONER, RESPONDENT) or speaker in UNKNOWN_SPEAKER_LABELS:
         return speaker
     s = speaker.replace(",", "").strip()
     s = _strip_name_suffixes(s)
@@ -334,6 +336,37 @@ def clean_transcript(
     return serialize_transcript(cleaned, footer)
 
 
+def transcript_has_justice_speaker(content: str) -> bool:
+    """Return True if the transcript has at least one turn where the speaker is a justice (known last name)."""
+    turns, _ = parse_transcript(content)
+    for speaker, _ in turns:
+        if speaker in KNOWN_JUSTICE_LAST_NAMES:
+            return True
+    return False
+
+
+def remove_transcripts_without_justice_decisions(
+    dir_path: str | Path,
+) -> list[Path]:
+    """
+    Remove transcript .txt files that contain no justice decisions (no turn has a justice as speaker).
+    Returns the list of file paths that were removed.
+    """
+    dir_path = Path(dir_path)
+    if not dir_path.is_dir():
+        return []
+    removed = []
+    for path in dir_path.glob("*.txt"):
+        try:
+            content = path.read_text(encoding="utf-8")
+            if not transcript_has_justice_speaker(content):
+                path.unlink()
+                removed.append(path)
+        except Exception:
+            continue
+    return removed
+
+
 # ---------------------------------------------------------------------------
 # Pipeline and main
 # ---------------------------------------------------------------------------
@@ -391,6 +424,11 @@ def main() -> None:
         action="store_true",
         help="Merge consecutive turns by the same speaker",
     )
+    parser.add_argument(
+        "--keep-no-justice",
+        action="store_true",
+        help="Keep transcript files that have no justice as speaker (default is to remove them)",
+    )
     args = parser.parse_args()
 
     print("Ensuring ConvoKit cases.jsonl is available...", file=sys.stderr)
@@ -436,6 +474,15 @@ def main() -> None:
             continue
         if i % 100 == 0 or i == len(convo_ids):
             print(f"  {i}/{len(convo_ids)}", file=sys.stderr)
+
+    if not args.keep_no_justice:
+        removed = remove_transcripts_without_justice_decisions(out_dir)
+        if removed:
+            print(f"Removed {len(removed)} transcript(s) with no justice decisions.", file=sys.stderr)
+            for p in removed[:10]:
+                print(f"  {p.name}", file=sys.stderr)
+            if len(removed) > 10:
+                print(f"  ... and {len(removed) - 10} more", file=sys.stderr)
 
     print("Done.", file=sys.stderr)
 

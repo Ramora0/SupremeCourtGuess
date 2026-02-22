@@ -45,7 +45,9 @@ KNOWN_JUSTICE_LAST_NAMES = {
     "Thompson", "Todd", "Trimble", "VanDevanter", "Vinson", "Waite", "Warren",
     "Washington", "Wayne", "White", "Whittaker", "Wilson", "Woodbury", "Woods",
 }
-KNOWN_SPEAKERS = {PETITIONER, RESPONDENT, "Jr."} | KNOWN_JUSTICE_LAST_NAMES
+# ConvoKit uses "Unknown" for unrecognized speakers; must be recognized when re-parsing
+UNKNOWN_SPEAKER_LABELS = {"Unknown"}
+KNOWN_SPEAKERS = {PETITIONER, RESPONDENT, "Jr."} | KNOWN_JUSTICE_LAST_NAMES | UNKNOWN_SPEAKER_LABELS
 
 
 # ---------------------------------------------------------------------------
@@ -187,8 +189,8 @@ def format_text(text: str) -> str:
 
 
 def format_speaker(speaker: str) -> str:
-    """Normalize speaker label: keep Petitioner/Respondent; else remove Jr./commas, use last name."""
-    if speaker in (PETITIONER, RESPONDENT):
+    """Normalize speaker label: keep Petitioner/Respondent/Unknown; else remove Jr./commas, use last name."""
+    if speaker in (PETITIONER, RESPONDENT) or speaker in UNKNOWN_SPEAKER_LABELS:
         return speaker
     s = speaker.replace("Jr.", "").replace(",", "").strip()
     if not s:
