@@ -782,7 +782,7 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=3)
     p.add_argument("--batch-size", type=int, default=1,
                     help="Samples per encoder batch (default: 1)")
-    p.add_argument("--lr", type=float, default=2e-5, help="Encoder learning rate")
+    p.add_argument("--lr", type=float, default=1e-5, help="Encoder learning rate")
     p.add_argument("--head-lr", type=float, default=0, help="Head LR (0 → lr*10)")
     p.add_argument("--weight-decay", type=float, default=0.01)
     p.add_argument("--warmup-ratio", type=float, default=0.05)
@@ -792,15 +792,15 @@ def parse_args():
     p.add_argument("--label-smoothing", type=float, default=0.0)
 
     # Head architecture
-    p.add_argument("--head-dim", type=int, default=128)
-    p.add_argument("--num-queries", type=int, default=4)
+    p.add_argument("--head-dim", type=int, default=64)
+    p.add_argument("--num-queries", type=int, default=2)
     p.add_argument("--self-attn-layers", type=int, default=1)
-    p.add_argument("--ffn-dim", type=int, default=256)
+    p.add_argument("--ffn-dim", type=int, default=128)
     p.add_argument("--dropout", type=float, default=0.1)
 
     # Encoder control
     p.add_argument(
-        "--freeze-layers", type=int, default=0,
+        "--freeze-layers", type=int, default=6,
         help="Freeze bottom N encoder layers + embeddings",
     )
 
