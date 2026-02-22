@@ -592,6 +592,9 @@ class SCOTUSEncoderModel(nn.Module):
         # Speaker type embedding (added to turn vectors before projection)
         self.speaker_type_emb = nn.Embedding(3, encoder_dim)
 
+        # Per-justice turn identity embedding (added to turn vectors for justice turns)
+        self.justice_turn_emb = nn.Embedding(max_justices, encoder_dim)
+
         # Project encoder dim to cross-attention input dim
         self.input_proj = nn.Linear(encoder_dim, inner_dim)
 
@@ -627,6 +630,7 @@ class SCOTUSEncoderModel(nn.Module):
         turn_vectors: torch.Tensor,
         turn_speaker_types: torch.Tensor,
         justice_ids: torch.Tensor,
+        turn_justice_ids: torch.Tensor | None = None,
         no_transcript: bool = False,
         no_speaker_embeddings: bool = False,
         no_self_attention: bool = False,
@@ -636,6 +640,7 @@ class SCOTUSEncoderModel(nn.Module):
             turn_vectors: (T, encoder_dim) pooled turn vectors from encoder
             turn_speaker_types: (T,) speaker type IDs (0=justice, 1=pet, 2=resp)
             justice_ids: (J,) integer justice IDs
+            turn_justice_ids: (T,) justice registry IDs per turn (-1 for non-justice)
             no_transcript: zero out transcript for ablation
             no_speaker_embeddings: skip speaker type embeddings
             no_self_attention: skip self-attention across justices
@@ -646,6 +651,14 @@ class SCOTUSEncoderModel(nn.Module):
         # Add speaker type embeddings
         if not no_speaker_embeddings:
             turn_vectors = turn_vectors + self.speaker_type_emb(turn_speaker_types)
+
+        # Add per-justice identity embeddings for justice turns
+        if turn_justice_ids is not None:
+            justice_mask = turn_justice_ids >= 0  # (T,)
+            if justice_mask.any():
+                justice_emb = self.justice_turn_emb(turn_justice_ids[justice_mask])
+                turn_vectors = turn_vectors.clone()
+                turn_vectors[justice_mask] = turn_vectors[justice_mask] + justice_emb
 
         # Zero out for ablation
         if no_transcript:
@@ -824,13 +837,15 @@ def prepare_batch(
     max_length: int,
     device: torch.device,
     amp_ctx,
+    registry: "JusticeRegistry | None" = None,
     no_transcript: bool = False,
     profile: bool = False,
-) -> list[tuple[torch.Tensor, torch.Tensor, list[Turn], list[Turn]]]:
+) -> list[tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[Turn], list[Turn]]]:
     """Parse and encode a batch of samples with a single batched encoder call.
 
-    Returns list of (turn_vectors, turn_speaker_types, pet_turns, resp_turns)
-    per sample.
+    Returns list of (turn_vectors, turn_speaker_types, turn_justice_ids,
+    pet_turns, resp_turns) per sample. turn_justice_ids maps each turn to its
+    justice registry ID (-1 for non-justice turns).
     """
     hidden_dim = encoder.config.hidden_size
 
@@ -851,7 +866,8 @@ def prepare_batch(
         for pet, resp in zip(all_pet_turns, all_resp_turns):
             tv = torch.zeros(1, hidden_dim, device=device)
             st = torch.tensor([0], device=device)
-            results.append((tv, st, pet, resp))
+            jids = torch.tensor([-1], device=device, dtype=torch.long)
+            results.append((tv, st, jids, pet, resp))
         return results
 
     # 2. Collect all non-empty phases for batched encoding
@@ -899,10 +915,19 @@ def prepare_batch(
                 for t in sample_phase_turns[s_idx]
             ]
             st = torch.tensor(speaker_types, device=device)
+            # Map each turn to its justice registry ID (-1 for non-justice)
+            justice_ids_per_turn = []
+            for t in sample_phase_turns[s_idx]:
+                if t.speaker_type == "justice" and registry is not None:
+                    justice_ids_per_turn.append(registry.get_or_add(t.speaker_label))
+                else:
+                    justice_ids_per_turn.append(-1)
+            jids = torch.tensor(justice_ids_per_turn, device=device, dtype=torch.long)
         else:
             tv = torch.zeros(1, hidden_dim, device=device)
             st = torch.tensor([0], device=device)
-        results.append((tv, st, pet, resp))
+            jids = torch.tensor([-1], device=device, dtype=torch.long)
+        results.append((tv, st, jids, pet, resp))
 
     return results
 
@@ -1061,6 +1086,7 @@ def train():
             # Batched encode: one encoder call for all phases in this batch
             batch_results = prepare_batch(
                 batch_samples, encoder, tokenizer, max_length, device, amp_ctx,
+                registry=registry,
                 no_transcript=args.no_transcript,
                 profile=do_profile,
             )
@@ -1068,7 +1094,7 @@ def train():
             # Process each sample through the head, accumulate loss
             t0 = time.perf_counter() if do_profile else 0
             accumulated_loss = None
-            for s_idx, (sample, (turn_vectors, turn_speaker_types, pet_turns, resp_turns)) in enumerate(
+            for s_idx, (sample, (turn_vectors, turn_speaker_types, turn_justice_ids, pet_turns, resp_turns)) in enumerate(
                 zip(batch_samples, batch_results)
             ):
                 justice_names = list(sample["votes"].keys())
@@ -1083,6 +1109,7 @@ def train():
 
                 logits, aux_preds = model(
                     turn_vectors, turn_speaker_types, justice_ids,
+                    turn_justice_ids=turn_justice_ids,
                     no_transcript=args.no_transcript,
                     no_speaker_embeddings=args.no_speaker_embeddings,
                     no_self_attention=args.no_self_attention,
@@ -1266,10 +1293,11 @@ def evaluate(
 
         batch_results = prepare_batch(
             batch_samples, encoder, tokenizer, max_length, device, amp_ctx,
+            registry=registry,
             no_transcript=args.no_transcript,
         )
 
-        for sample, (turn_vectors, turn_speaker_types, pet_turns, resp_turns) in zip(
+        for sample, (turn_vectors, turn_speaker_types, turn_justice_ids, pet_turns, resp_turns) in zip(
             batch_samples, batch_results
         ):
             justice_names = list(sample["votes"].keys())
@@ -1284,6 +1312,7 @@ def evaluate(
 
             logits, _ = model(
                 turn_vectors, turn_speaker_types, justice_ids,
+                turn_justice_ids=turn_justice_ids,
                 no_transcript=args.no_transcript,
                 no_speaker_embeddings=args.no_speaker_embeddings,
                 no_self_attention=args.no_self_attention,
