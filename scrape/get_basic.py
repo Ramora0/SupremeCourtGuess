@@ -131,17 +131,43 @@ def get_basic(case: dict, timeout: int = 30) -> dict | None:
             if name:
                 votes.append({'name': name, 'vote': vote})
 
-    # Determine win_side: compare winning_party to first_party/second_party labels
-    if majority:
-        if fp and majority == fp:
-            # First party won; use first_party_label to determine side
+    # Determine win_side: compare winning_party to first_party/second_party
+    def _normalize(s: str) -> str:
+        """Lowercase, strip punctuation differences like et al./et al, Corp./Corporation."""
+        return re.sub(r'[.,;]', '', s.lower()).strip()
+
+    def _party_matches(winner: str, party: str) -> bool:
+        if not winner or not party:
+            return False
+        w, p = _normalize(winner), _normalize(party)
+        if w == p or w in p or p in w:
+            return True
+        # Check if any word in winner appears in party (handles last names)
+        w_words = w.split()
+        p_words = p.split()
+        if len(w_words) == 1 and any(w_words[0] == pw for pw in p_words):
+            return True
+        return False
+
+    majority_lower = majority.lower().strip()
+    if majority_lower in ('petitioner', 'appellant'):
+        win_side = 1
+    elif majority_lower in ('respondent', 'appellee'):
+        win_side = 0
+    elif majority_lower in ('dismissal', 'both', 'neither party', 'all parties',
+                            'vacatur', 'n/a', 'questions certified'):
+        win_side = 2
+    elif majority:
+        fp_match = _party_matches(majority, fp)
+        sp_match = _party_matches(majority, sp)
+        if fp_match and not sp_match:
             if fpl.lower() in ('petitioner', 'appellant'):
                 win_side = 1
             elif fpl.lower() in ('respondent', 'appellee'):
                 win_side = 0
             else:
                 win_side = 2
-        elif sp and majority == sp:
+        elif sp_match and not fp_match:
             if spl.lower() in ('petitioner', 'appellant'):
                 win_side = 1
             elif spl.lower() in ('respondent', 'appellee'):
@@ -149,7 +175,7 @@ def get_basic(case: dict, timeout: int = 30) -> dict | None:
             else:
                 win_side = 2
         else:
-            win_side = 2  # winning party doesn't match either party name
+            win_side = 2  # ambiguous or no match
 
     # Convert votes from majority/minority to petitioner/respondent side
     # If a justice voted "majority" and petitioner won (win_side=1), they voted Petitioner
@@ -164,6 +190,12 @@ def get_basic(case: dict, timeout: int = 30) -> dict | None:
         else:
             side = 'Unknown'
         votes_with_side.append({'name': name, 'side': side})
+
+    # Filter out cases missing critical data
+    if not majority:
+        return None
+    if not transcript_url:
+        return None
 
     return {
         'name': case['name'],
