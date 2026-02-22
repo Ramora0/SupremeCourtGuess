@@ -2,6 +2,7 @@
 
 Predicts how each Supreme Court justice will vote on a case using only the oral argument transcript. A fine-tuned encoder model (ModernBERT or DeBERTa) reads the transcript, identifies who's speaking and what they're saying, and outputs a per-justice prediction of whether they'll side with the petitioner or respondent.
 
+**Our Website**: https://court-oracle-insight.lovable.app
 ## How it works
 
 1. **Data generation** — The ConvoKit Supreme Court corpus (1955–2019) is converted into cleaned transcripts with speaker labels, justice votes, and SCDB case metadata (issue area, jurisdiction, etc.).
