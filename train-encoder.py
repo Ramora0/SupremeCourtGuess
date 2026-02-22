@@ -969,8 +969,8 @@ def train():
     encoder.to(device)
 
     # Compile encoder for fused CUDA kernels (first batch is slow, rest faster)
-    if device.type == "cuda":
-        encoder = torch.compile(encoder)
+    # if device.type == "cuda":
+    #     encoder = torch.compile(encoder)
 
     # Build head
     model = SCOTUSEncoderModel(
