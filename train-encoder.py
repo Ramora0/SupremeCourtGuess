@@ -767,13 +767,13 @@ def parse_args():
 
     # Training
     p.add_argument("--epochs", type=int, default=5)
-    p.add_argument("--batch-size", type=int, default=4,
-                    help="Samples per encoder batch (default: 4)")
+    p.add_argument("--batch-size", type=int, default=1,
+                    help="Samples per encoder batch (default: 1)")
     p.add_argument("--lr", type=float, default=2e-5, help="Encoder learning rate")
     p.add_argument("--head-lr", type=float, default=0, help="Head LR (0 → lr*10)")
     p.add_argument("--weight-decay", type=float, default=0.01)
     p.add_argument("--warmup-ratio", type=float, default=0.05)
-    p.add_argument("--grad-accum", type=int, default=4,
+    p.add_argument("--grad-accum", type=int, default=16,
                     help="Gradient accumulation batches (effective batch = batch_size * grad_accum)")
     p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--label-smoothing", type=float, default=0.0)
