@@ -13,6 +13,7 @@ import json
 import math
 import os
 import random
+import time
 from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
@@ -360,6 +361,7 @@ def batch_encode_phases(
     max_length: int,
     device: torch.device,
     amp_ctx,
+    profile: bool = False,
 ) -> list[torch.Tensor]:
     """Encode multiple phases in a single batched encoder call, then pool per-turn.
 
@@ -380,6 +382,7 @@ def batch_encode_phases(
         all_char_boundaries.append((char_starts, char_ends))
 
     # Batch tokenize with padding
+    t0 = time.perf_counter() if profile else 0
     encoding = tokenizer(
         all_texts,
         return_tensors="pt",
@@ -392,13 +395,22 @@ def batch_encode_phases(
     input_ids = encoding["input_ids"].to(device)
     attention_mask = encoding["attention_mask"].to(device)
     offset_mapping = encoding["offset_mapping"]  # (B, seq_len, 2) on CPU
+    if profile:
+        print(f"    [profile] tokenize: {time.perf_counter() - t0:.3f}s, "
+              f"shape={list(input_ids.shape)}")
 
     # Batched encoder forward
+    t0 = time.perf_counter() if profile else 0
     with amp_ctx:
         outputs = encoder(input_ids=input_ids, attention_mask=attention_mask)
     hidden_states = outputs.last_hidden_state.float()  # (B, seq_len, hidden_dim)
+    if profile:
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+        print(f"    [profile] encoder fwd: {time.perf_counter() - t0:.3f}s")
 
     # Pool per-turn for each phase
+    t0 = time.perf_counter() if profile else 0
     results = []
     for b, turns in enumerate(phase_turn_lists):
         char_starts, char_ends = all_char_boundaries[b]
@@ -407,6 +419,10 @@ def batch_encode_phases(
             char_starts, char_ends, len(turns), device,
         )
         results.append(turn_vecs)
+    if profile:
+        total_turns = sum(len(t) for t in phase_turn_lists)
+        print(f"    [profile] pool: {time.perf_counter() - t0:.3f}s, "
+              f"{total_turns} turns")
 
     return results
 
@@ -776,6 +792,8 @@ def parse_args():
     p.add_argument("--run-name", type=str, default=None)
     p.add_argument("--log-every", type=int, default=8,
                     help="Log metrics every N optimizer steps")
+    p.add_argument("--profile", action="store_true",
+                    help="Print per-section timing for first few batches")
 
     return p.parse_args()
 
@@ -791,6 +809,7 @@ def prepare_batch(
     device: torch.device,
     amp_ctx,
     no_transcript: bool = False,
+    profile: bool = False,
 ) -> list[tuple[torch.Tensor, torch.Tensor, list[Turn], list[Turn]]]:
     """Parse and encode a batch of samples with a single batched encoder call.
 
@@ -800,6 +819,7 @@ def prepare_batch(
     hidden_dim = encoder.config.hidden_size
 
     # 1. Parse all samples
+    t0 = time.perf_counter() if profile else 0
     all_pet_turns = []
     all_resp_turns = []
     for sample in samples:
@@ -807,6 +827,8 @@ def prepare_batch(
         pet, resp = split_into_phases(turns)
         all_pet_turns.append(pet)
         all_resp_turns.append(resp)
+    if profile:
+        print(f"  [profile] parse: {time.perf_counter() - t0:.3f}s")
 
     if no_transcript:
         results = []
@@ -828,12 +850,19 @@ def prepare_batch(
             phase_index.append((s_idx, "resp"))
 
     # 3. Batch encode all phases in one encoder call
+    t0 = time.perf_counter() if profile else 0
     if phase_turn_lists:
         phase_vectors = batch_encode_phases(
             encoder, tokenizer, phase_turn_lists, max_length, device, amp_ctx,
+            profile=profile,
         )
     else:
         phase_vectors = []
+    if profile:
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+        print(f"  [profile] encode ({len(phase_turn_lists)} phases): "
+              f"{time.perf_counter() - t0:.3f}s")
 
     # 4. Reassemble per-sample
     sample_phase_vectors: list[list[torch.Tensor]] = [[] for _ in samples]
@@ -996,6 +1025,9 @@ def train():
         pbar = tqdm(range(batches_per_epoch), desc=f"Epoch {epoch+1}/{args.epochs}")
 
         for batch_idx in pbar:
+            do_profile = args.profile and batch_idx < 3
+            t_batch = time.perf_counter() if do_profile else 0
+
             # Gather batch of samples
             batch_start = batch_idx * args.batch_size
             batch_end = min(batch_start + args.batch_size, len(train_samples))
@@ -1006,9 +1038,11 @@ def train():
             batch_results = prepare_batch(
                 batch_samples, encoder, tokenizer, max_length, device, amp_ctx,
                 no_transcript=args.no_transcript,
+                profile=do_profile,
             )
 
             # Process each sample through the head, accumulate loss
+            t0 = time.perf_counter() if do_profile else 0
             accumulated_loss = None
             for s_idx, (sample, (turn_vectors, turn_speaker_types, pet_turns, resp_turns)) in enumerate(
                 zip(batch_samples, batch_results)
@@ -1067,7 +1101,17 @@ def train():
                         )
                         accum_case_prob_n += 1
 
+            if do_profile:
+                print(f"  [profile] head fwd ({B} samples): "
+                      f"{time.perf_counter() - t0:.3f}s")
+
+            t0 = time.perf_counter() if do_profile else 0
             accumulated_loss.backward()
+            if do_profile:
+                if device.type == "cuda":
+                    torch.cuda.synchronize()
+                print(f"  [profile] backward: {time.perf_counter() - t0:.3f}s")
+                print(f"  [profile] TOTAL batch: {time.perf_counter() - t_batch:.3f}s")
             del accumulated_loss
             log_micro_batches += B
             micro_step += 1
