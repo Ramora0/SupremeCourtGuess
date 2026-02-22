@@ -13,6 +13,7 @@ import json
 import math
 import os
 import random
+import sys
 import time
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -24,6 +25,10 @@ import torch.nn.functional as F
 import wandb
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
+
+# SCDB integration
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "conversation_generator"))
+from scdb_matcher import get_scdb_case_row
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -53,7 +58,19 @@ KNOWN_JUSTICE_NAMES = {
 PARTY_LABELS = {"Petitioner", "Respondent"}
 ALL_SPEAKER_LABELS = KNOWN_JUSTICE_NAMES | PARTY_LABELS | {"Unknown"}
 
-SPEAKER_TYPE_MAP = {"justice": 0, "petitioner": 1, "respondent": 2}
+SPEAKER_TYPE_MAP = {"justice": 0, "petitioner": 1, "respondent": 2, "metadata": 3}
+
+# SCDB feature definitions: (name, num_categories)
+# Categories include +1 for unknown/missing (mapped to index 0)
+SCDB_FEATURES = [
+    ("issueArea", 15),           # 1-14 + unknown
+    ("jurisdiction", 16),        # 1-15 + unknown
+    ("certReason", 14),          # 1-13 + unknown
+    ("lcDisposition", 13),       # 1-12 + unknown
+    ("lcDispositionDirection", 4),  # 1-3 + unknown
+    ("lcDisagreement", 3),       # 0-1 + unknown
+    ("lawType", 10),             # 1-9 + unknown
+]
 
 
 # ── Data types ────────────────────────────────────────────────────────────────
@@ -66,12 +83,66 @@ class Turn:
     speaker_type: str    # 'justice', 'petitioner', 'respondent', 'unknown'
 
 
+# ── SCDB feature extraction ───────────────────────────────────────────────────
+
+
+def _filename_to_case_id(filename: str) -> str:
+    """Convert transcript filename to case_id for SCDB matching."""
+    base = filename.replace(".txt", "")
+    parts = base.split("_")
+    if len(parts) >= 3:
+        last = parts[-1]
+        if last.isdigit() and len(last) >= 4:
+            base = "_".join(parts[:-1])
+    return base
+
+
+def _extract_scdb_features(case_id: str) -> dict[str, int] | None:
+    """Extract SCDB feature indices for a case. Returns None if no match.
+
+    Each feature is mapped to an integer index suitable for nn.Embedding:
+      - 0 = unknown/missing
+      - 1+ = the SCDB code (offset so all values are non-negative)
+    """
+    import pandas as pd
+    row = get_scdb_case_row(case_id)
+    if row is None:
+        return None
+
+    def safe_idx(val, max_cat):
+        """Map SCDB value to embedding index. 0=unknown, 1+=valid code."""
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return 0
+        v = int(val)
+        if v < 0 or v >= max_cat:
+            return 0
+        return v + 1  # shift so 0 is reserved for unknown
+
+    # lcDisagreement is already 0/1, shift to 1/2 (0=unknown)
+    def safe_binary(val):
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return 0
+        return int(val) + 1
+
+    return {
+        "issueArea": safe_idx(row.get("issueArea"), 15),
+        "jurisdiction": safe_idx(row.get("jurisdiction"), 16),
+        "certReason": safe_idx(row.get("certReason"), 14),
+        "lcDisposition": safe_idx(row.get("lcDisposition"), 13),
+        "lcDispositionDirection": safe_idx(row.get("lcDispositionDirection"), 4),
+        "lcDisagreement": safe_binary(row.get("lcDisagreement")),
+        "lawType": safe_idx(row.get("lawType"), 10),
+    }
+
+
 # ── Data loading (reused from train-lee.py) ───────────────────────────────────
 
 
-def load_transcripts(data_dir: str) -> list[dict]:
+def load_transcripts(data_dir: str, load_scdb: bool = False) -> list[dict]:
     """Load transcript files and split into transcript text and vote labels."""
     samples = []
+    scdb_hit = 0
+    scdb_miss = 0
     paths = sorted(glob.glob(os.path.join(data_dir, "*.txt")))
     if not paths:
         raise FileNotFoundError(f"No .txt files found in {data_dir}")
@@ -94,13 +165,29 @@ def load_transcripts(data_dir: str) -> list[dict]:
         if not votes:
             continue
 
-        samples.append({
+        filename = os.path.basename(path)
+        sample = {
             "transcript": transcript,
             "votes": votes,
-            "filename": os.path.basename(path),
-        })
+            "filename": filename,
+            "scdb": None,
+        }
+
+        if load_scdb:
+            case_id = _filename_to_case_id(filename)
+            scdb = _extract_scdb_features(case_id)
+            sample["scdb"] = scdb
+            if scdb is not None:
+                scdb_hit += 1
+            else:
+                scdb_miss += 1
+
+        samples.append(sample)
 
     print(f"Loaded {len(samples)} samples from {data_dir}")
+    if load_scdb:
+        print(f"SCDB match: {scdb_hit} matched, {scdb_miss} missed "
+              f"({100*scdb_hit/(scdb_hit+scdb_miss):.1f}%)")
     return samples
 
 
@@ -468,6 +555,35 @@ class JusticeEmbeddings(nn.Module):
         return self.embedding(indices)  # (J, Q, dim)
 
 
+class SCDBEmbedding(nn.Module):
+    """Embed SCDB categorical features into a single vector.
+
+    Each feature gets its own embedding table. All embeddings are summed
+    to produce one case-level vector of size `output_dim`.
+    """
+
+    def __init__(self, output_dim: int):
+        super().__init__()
+        self.feature_names = [name for name, _ in SCDB_FEATURES]
+        self.embeddings = nn.ModuleDict({
+            name: nn.Embedding(num_cat, output_dim)
+            for name, num_cat in SCDB_FEATURES
+        })
+
+    def forward(self, scdb_indices: dict[str, torch.Tensor]) -> torch.Tensor:
+        """
+        Args:
+            scdb_indices: {feature_name: scalar tensor of index}
+        Returns:
+            (1, output_dim) case-level embedding vector
+        """
+        vecs = []
+        for name in self.feature_names:
+            idx = scdb_indices[name]
+            vecs.append(self.embeddings[name](idx))  # (output_dim,)
+        return torch.stack(vecs).sum(dim=0).unsqueeze(0)  # (1, output_dim)
+
+
 class TranscriptCrossAttention(nn.Module):
     """Cross-attention from justice queries to transcript turn vectors.
 
@@ -583,17 +699,24 @@ class SCOTUSEncoderModel(nn.Module):
         ffn_dim: int = 256,
         dropout: float = 0.1,
         max_justices: int = MAX_JUSTICES,
+        use_scdb: bool = False,
     ):
         super().__init__()
         self.num_queries = num_queries
         self.head_dim = head_dim
+        self.use_scdb = use_scdb
         inner_dim = num_queries * head_dim
 
         # Speaker type embedding (added to turn vectors before projection)
-        self.speaker_type_emb = nn.Embedding(3, encoder_dim)
+        # 4 types: justice=0, petitioner=1, respondent=2, metadata=3
+        self.speaker_type_emb = nn.Embedding(4, encoder_dim)
 
         # Per-justice turn identity embedding (added to turn vectors for justice turns)
         self.justice_turn_emb = nn.Embedding(max_justices, encoder_dim)
+
+        # SCDB case metadata embedding (injected as extra KV token)
+        if use_scdb:
+            self.scdb_embedding = SCDBEmbedding(encoder_dim)
 
         # Project encoder dim to cross-attention input dim
         self.input_proj = nn.Linear(encoder_dim, inner_dim)
@@ -631,6 +754,7 @@ class SCOTUSEncoderModel(nn.Module):
         turn_speaker_types: torch.Tensor,
         justice_ids: torch.Tensor,
         turn_justice_ids: torch.Tensor | None = None,
+        scdb_indices: dict[str, torch.Tensor] | None = None,
         no_transcript: bool = False,
         no_speaker_embeddings: bool = False,
         no_self_attention: bool = False,
@@ -638,9 +762,10 @@ class SCOTUSEncoderModel(nn.Module):
         """
         Args:
             turn_vectors: (T, encoder_dim) pooled turn vectors from encoder
-            turn_speaker_types: (T,) speaker type IDs (0=justice, 1=pet, 2=resp)
+            turn_speaker_types: (T,) speaker type IDs (0=justice, 1=pet, 2=resp, 3=metadata)
             justice_ids: (J,) integer justice IDs
             turn_justice_ids: (T,) justice registry IDs per turn (-1 for non-justice)
+            scdb_indices: {feature_name: scalar tensor} SCDB feature indices
             no_transcript: zero out transcript for ablation
             no_speaker_embeddings: skip speaker type embeddings
             no_self_attention: skip self-attention across justices
@@ -660,12 +785,25 @@ class SCOTUSEncoderModel(nn.Module):
                 turn_vectors = turn_vectors.clone()
                 turn_vectors[justice_mask] = turn_vectors[justice_mask] + justice_emb
 
+        # Append SCDB case metadata as extra KV token(s)
+        if self.use_scdb and scdb_indices is not None:
+            scdb_vec = self.scdb_embedding(scdb_indices)  # (1, encoder_dim)
+            turn_vectors = torch.cat([turn_vectors, scdb_vec], dim=0)
+            # Extend speaker types with metadata type (3)
+            meta_type = torch.tensor([SPEAKER_TYPE_MAP["metadata"]],
+                                     device=turn_speaker_types.device)
+            turn_speaker_types = torch.cat([turn_speaker_types, meta_type])
+            if turn_justice_ids is not None:
+                meta_jid = torch.tensor([-1], device=turn_justice_ids.device,
+                                        dtype=torch.long)
+                turn_justice_ids = torch.cat([turn_justice_ids, meta_jid])
+
         # Zero out for ablation
         if no_transcript:
             turn_vectors = torch.zeros_like(turn_vectors)
 
         # Project to cross-attention input dimension
-        transcript = self.input_proj(turn_vectors)  # (T, inner_dim)
+        transcript = self.input_proj(turn_vectors)  # (T+S, inner_dim)
 
         # Justice queries
         queries = self.justice_embeddings(justice_ids)  # (J, Q, head_dim)
@@ -804,6 +942,10 @@ def parse_args():
         help="Freeze bottom N encoder layers + embeddings",
     )
 
+    # SCDB features
+    p.add_argument("--scdb", action="store_true",
+                    help="Load and inject SCDB case metadata features")
+
     # Ablations
     p.add_argument("--no-transcript", action="store_true",
                     help="Zero out transcript (critical diagnostic)")
@@ -932,6 +1074,15 @@ def prepare_batch(
     return results
 
 
+def scdb_to_tensors(
+    scdb_dict: dict[str, int] | None, device: torch.device
+) -> dict[str, torch.Tensor] | None:
+    """Convert a sample's SCDB feature dict to tensors for the model."""
+    if scdb_dict is None:
+        return None
+    return {k: torch.tensor(v, device=device) for k, v in scdb_dict.items()}
+
+
 # ── Training ──────────────────────────────────────────────────────────────────
 
 
@@ -971,6 +1122,7 @@ def train():
         "ffn_dim": args.ffn_dim,
         "dropout": args.dropout,
         "freeze_layers": args.freeze_layers,
+        "scdb": args.scdb,
         "no_transcript": args.no_transcript,
         "no_speaker_embeddings": args.no_speaker_embeddings,
         "no_self_attention": args.no_self_attention,
@@ -980,7 +1132,7 @@ def train():
     wandb.init(project="supreme-court", name=run_name, config=config)
 
     # Load data
-    all_samples = load_transcripts(args.data_dir)
+    all_samples = load_transcripts(args.data_dir, load_scdb=args.scdb)
     train_samples, eval_samples = split_by_year(all_samples, args.eval_year)
 
     registry = JusticeRegistry()
@@ -1005,6 +1157,7 @@ def train():
         self_attn_layers=args.self_attn_layers,
         ffn_dim=args.ffn_dim,
         dropout=args.dropout,
+        use_scdb=args.scdb,
     ).to(device).float()
 
     total_head_params = sum(p.numel() for p in model.parameters())
@@ -1107,9 +1260,12 @@ def train():
                     device=device, dtype=torch.long,
                 )
 
+                scdb_tensors = scdb_to_tensors(sample.get("scdb"), device)
+
                 logits, aux_preds = model(
                     turn_vectors, turn_speaker_types, justice_ids,
                     turn_justice_ids=turn_justice_ids,
+                    scdb_indices=scdb_tensors,
                     no_transcript=args.no_transcript,
                     no_speaker_embeddings=args.no_speaker_embeddings,
                     no_self_attention=args.no_self_attention,
@@ -1249,6 +1405,7 @@ def train():
             "ffn_dim": args.ffn_dim,
             "dropout": args.dropout,
             "max_justices": MAX_JUSTICES,
+            "use_scdb": args.scdb,
         },
     }, save_path)
     print(f"Saved model to {save_path}")
@@ -1311,9 +1468,12 @@ def evaluate(
                 device=device, dtype=torch.long,
             )
 
+            scdb_tensors = scdb_to_tensors(sample.get("scdb"), device)
+
             logits, _ = model(
                 turn_vectors, turn_speaker_types, justice_ids,
                 turn_justice_ids=turn_justice_ids,
+                scdb_indices=scdb_tensors,
                 no_transcript=args.no_transcript,
                 no_speaker_embeddings=args.no_speaker_embeddings,
                 no_self_attention=args.no_self_attention,
