@@ -290,13 +290,6 @@ def load_encoder(name: str, freeze_layers: int = 0):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     encoder = AutoModel.from_pretrained(model_path)
 
-    hidden_dim = encoder.config.hidden_size
-    max_length = getattr(encoder.config, "max_position_embeddings", 512)
-
-    # Enable gradient checkpointing to save memory
-    if hasattr(encoder, "gradient_checkpointing_enable"):
-        encoder.gradient_checkpointing_enable()
-
     if freeze_layers > 0:
         freeze_encoder_layers(encoder, freeze_layers)
         n_frozen = sum(1 for p in encoder.parameters() if not p.requires_grad)
@@ -338,20 +331,40 @@ def _pool_turns_from_hidden(
     num_turns: int,
     device: torch.device,
 ) -> torch.Tensor:
-    """Pool encoder hidden states into per-turn vectors using offset mapping."""
+    """Pool encoder hidden states into per-turn vectors using offset mapping.
+
+    Vectorized: uses searchsorted + scatter_add instead of per-turn loop.
+    """
+    hidden_dim = hidden_states.shape[-1]
     is_special = (offset_mapping[:, 0] == 0) & (offset_mapping[:, 1] == 0)
-    token_starts = offset_mapping[:, 0]
+    token_starts = offset_mapping[:, 0]  # (seq_len,) on CPU
 
-    turn_vectors = []
-    for t_idx in range(num_turns):
-        cs, ce = char_starts[t_idx], char_ends[t_idx]
-        mask = (token_starts >= cs) & (token_starts < ce) & ~is_special
-        if mask.any():
-            turn_vectors.append(hidden_states[mask.to(device)].mean(dim=0))
-        else:
-            turn_vectors.append(torch.zeros(hidden_states.shape[-1], device=device))
+    # Assign each token to a turn via binary search on char_starts
+    cs_t = torch.tensor(char_starts, dtype=torch.long)
+    ce_t = torch.tensor(char_ends, dtype=torch.long)
 
-    return torch.stack(turn_vectors)
+    turn_assign = torch.searchsorted(cs_t, token_starts, side="right") - 1
+    turn_assign = turn_assign.clamp(min=0, max=num_turns - 1)
+
+    # Validate: token must fall within the assigned turn's char range
+    in_range = (token_starts >= cs_t[turn_assign]) & (token_starts < ce_t[turn_assign])
+    valid = in_range & ~is_special
+
+    valid_gpu = valid.to(device)
+    valid_hidden = hidden_states[valid_gpu]            # (N_valid, hidden_dim)
+    valid_turns = turn_assign[valid].to(device)        # (N_valid,)
+
+    # scatter_add to sum hidden states per turn
+    turn_sums = torch.zeros(num_turns, hidden_dim, device=device)
+    turn_sums.scatter_add_(0, valid_turns.unsqueeze(1).expand(-1, hidden_dim), valid_hidden)
+
+    # Count tokens per turn
+    turn_counts = torch.zeros(num_turns, device=device)
+    turn_counts.scatter_add_(0, valid_turns, torch.ones_like(valid_turns, dtype=turn_sums.dtype))
+
+    # Mean pool (turns with zero tokens get zero vectors)
+    turn_vectors = turn_sums / turn_counts.clamp(min=1).unsqueeze(1)
+    return turn_vectors
 
 
 def batch_encode_phases(
