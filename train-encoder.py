@@ -313,22 +313,8 @@ def load_encoder(name: str, freeze_layers: int = 0):
 # ── Phase encoding ────────────────────────────────────────────────────────────
 
 
-def encode_phase_with_turn_pooling(
-    encoder: nn.Module,
-    tokenizer,
-    turns: list[Turn],
-    max_length: int,
-    device: torch.device,
-    amp_ctx,
-) -> torch.Tensor | None:
-    """Encode a phase's turns with full context, then pool per-turn.
-
-    Returns (T, hidden_dim) turn vectors, or None if no turns.
-    """
-    if not turns:
-        return None
-
-    # Build text with tracked character boundaries per turn
+def _build_phase_text(turns: list[Turn]) -> tuple[str, list[int], list[int]]:
+    """Build concatenated text for a phase with character boundary tracking."""
     segments = []
     char_starts = []
     char_ends = []
@@ -338,47 +324,91 @@ def encode_phase_with_turn_pooling(
         segments.append(turn.text)
         pos += len(turn.text)
         char_ends.append(pos)
-        # Add space separator between turns
         segments.append(" ")
         pos += 1
+    return "".join(segments), char_starts, char_ends
 
-    full_text = "".join(segments)
 
-    # Tokenize with offset mapping
-    encoding = tokenizer(
-        full_text,
-        return_tensors="pt",
-        max_length=max_length,
-        truncation=True,
-        return_offsets_mapping=True,
-    )
-
-    input_ids = encoding["input_ids"].to(device)
-    attention_mask = encoding["attention_mask"].to(device)
-    offset_mapping = encoding["offset_mapping"][0]  # (seq_len, 2), stays on CPU
-
-    # Forward through encoder
-    with amp_ctx:
-        outputs = encoder(input_ids=input_ids, attention_mask=attention_mask)
-    hidden_states = outputs.last_hidden_state[0].float()  # (seq_len, hidden_dim)
-
-    # Identify special tokens (offset (0,0) means special token)
+def _pool_turns_from_hidden(
+    hidden_states: torch.Tensor,
+    offset_mapping: torch.Tensor,
+    char_starts: list[int],
+    char_ends: list[int],
+    num_turns: int,
+    device: torch.device,
+) -> torch.Tensor:
+    """Pool encoder hidden states into per-turn vectors using offset mapping."""
     is_special = (offset_mapping[:, 0] == 0) & (offset_mapping[:, 1] == 0)
-
-    # Map tokens to turns and mean-pool
-    turn_vectors = []
     token_starts = offset_mapping[:, 0]
 
-    for t_idx in range(len(turns)):
+    turn_vectors = []
+    for t_idx in range(num_turns):
         cs, ce = char_starts[t_idx], char_ends[t_idx]
         mask = (token_starts >= cs) & (token_starts < ce) & ~is_special
-
         if mask.any():
             turn_vectors.append(hidden_states[mask.to(device)].mean(dim=0))
         else:
             turn_vectors.append(torch.zeros(hidden_states.shape[-1], device=device))
 
-    return torch.stack(turn_vectors)  # (T, hidden_dim)
+    return torch.stack(turn_vectors)
+
+
+def batch_encode_phases(
+    encoder: nn.Module,
+    tokenizer,
+    phase_turn_lists: list[list[Turn]],
+    max_length: int,
+    device: torch.device,
+    amp_ctx,
+) -> list[torch.Tensor]:
+    """Encode multiple phases in a single batched encoder call, then pool per-turn.
+
+    Args:
+        phase_turn_lists: list of list[Turn] — each element is one phase's turns.
+    Returns:
+        list of (T_i, hidden_dim) tensors — turn vectors for each phase.
+    """
+    if not phase_turn_lists:
+        return []
+
+    # Build text and char boundaries for each phase
+    all_texts = []
+    all_char_boundaries = []
+    for turns in phase_turn_lists:
+        text, char_starts, char_ends = _build_phase_text(turns)
+        all_texts.append(text)
+        all_char_boundaries.append((char_starts, char_ends))
+
+    # Batch tokenize with padding
+    encoding = tokenizer(
+        all_texts,
+        return_tensors="pt",
+        max_length=max_length,
+        truncation=True,
+        padding=True,
+        return_offsets_mapping=True,
+    )
+
+    input_ids = encoding["input_ids"].to(device)
+    attention_mask = encoding["attention_mask"].to(device)
+    offset_mapping = encoding["offset_mapping"]  # (B, seq_len, 2) on CPU
+
+    # Batched encoder forward
+    with amp_ctx:
+        outputs = encoder(input_ids=input_ids, attention_mask=attention_mask)
+    hidden_states = outputs.last_hidden_state.float()  # (B, seq_len, hidden_dim)
+
+    # Pool per-turn for each phase
+    results = []
+    for b, turns in enumerate(phase_turn_lists):
+        char_starts, char_ends = all_char_boundaries[b]
+        turn_vecs = _pool_turns_from_hidden(
+            hidden_states[b], offset_mapping[b],
+            char_starts, char_ends, len(turns), device,
+        )
+        results.append(turn_vecs)
+
+    return results
 
 
 # ── Model components ──────────────────────────────────────────────────────────
@@ -705,11 +735,14 @@ def parse_args():
 
     # Training
     p.add_argument("--epochs", type=int, default=5)
+    p.add_argument("--batch-size", type=int, default=4,
+                    help="Samples per encoder batch (default: 4)")
     p.add_argument("--lr", type=float, default=2e-5, help="Encoder learning rate")
     p.add_argument("--head-lr", type=float, default=0, help="Head LR (0 → lr*10)")
     p.add_argument("--weight-decay", type=float, default=0.01)
     p.add_argument("--warmup-ratio", type=float, default=0.05)
-    p.add_argument("--grad-accum", type=int, default=16)
+    p.add_argument("--grad-accum", type=int, default=4,
+                    help="Gradient accumulation batches (effective batch = batch_size * grad_accum)")
     p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--label-smoothing", type=float, default=0.0)
 
@@ -747,62 +780,86 @@ def parse_args():
     return p.parse_args()
 
 
-# ── Prepare sample ────────────────────────────────────────────────────────────
+# ── Prepare batch ─────────────────────────────────────────────────────────────
 
 
-def prepare_sample(
-    sample: dict,
+def prepare_batch(
+    samples: list[dict],
     encoder: nn.Module,
     tokenizer,
     max_length: int,
     device: torch.device,
     amp_ctx,
     no_transcript: bool = False,
-) -> tuple[torch.Tensor, torch.Tensor, list[Turn], list[Turn]]:
-    """Parse transcript, encode phases, return turn vectors and metadata.
+) -> list[tuple[torch.Tensor, torch.Tensor, list[Turn], list[Turn]]]:
+    """Parse and encode a batch of samples with a single batched encoder call.
 
-    Returns:
-        turn_vectors: (T, encoder_dim) — concatenated turn vectors from both phases
-        turn_speaker_types: (T,) — speaker type IDs
-        pet_turns: list of Turn objects for petitioner phase
-        resp_turns: list of Turn objects for respondent phase
+    Returns list of (turn_vectors, turn_speaker_types, pet_turns, resp_turns)
+    per sample.
     """
-    turns = parse_transcript_turns(sample["transcript"])
-    pet_turns, resp_turns = split_into_phases(turns)
+    hidden_dim = encoder.config.hidden_size
+
+    # 1. Parse all samples
+    all_pet_turns = []
+    all_resp_turns = []
+    for sample in samples:
+        turns = parse_transcript_turns(sample["transcript"])
+        pet, resp = split_into_phases(turns)
+        all_pet_turns.append(pet)
+        all_resp_turns.append(resp)
 
     if no_transcript:
-        # Single zero vector for ablation
-        hidden_dim = encoder.config.hidden_size
-        turn_vectors = torch.zeros(1, hidden_dim, device=device)
-        turn_speaker_types = torch.tensor([0], device=device)
-        return turn_vectors, turn_speaker_types, pet_turns, resp_turns
+        results = []
+        for pet, resp in zip(all_pet_turns, all_resp_turns):
+            tv = torch.zeros(1, hidden_dim, device=device)
+            st = torch.tensor([0], device=device)
+            results.append((tv, st, pet, resp))
+        return results
 
-    all_turn_vectors = []
-    all_speaker_types = []
+    # 2. Collect all non-empty phases for batched encoding
+    phase_turn_lists = []
+    phase_index = []  # (sample_idx, 'pet'|'resp')
+    for s_idx in range(len(samples)):
+        if all_pet_turns[s_idx]:
+            phase_turn_lists.append(all_pet_turns[s_idx])
+            phase_index.append((s_idx, "pet"))
+        if all_resp_turns[s_idx]:
+            phase_turn_lists.append(all_resp_turns[s_idx])
+            phase_index.append((s_idx, "resp"))
 
-    for phase_turns in [pet_turns, resp_turns]:
-        if not phase_turns:
-            continue
-        vectors = encode_phase_with_turn_pooling(
-            encoder, tokenizer, phase_turns, max_length, device, amp_ctx,
+    # 3. Batch encode all phases in one encoder call
+    if phase_turn_lists:
+        phase_vectors = batch_encode_phases(
+            encoder, tokenizer, phase_turn_lists, max_length, device, amp_ctx,
         )
-        if vectors is not None:
-            all_turn_vectors.append(vectors)
-            for turn in phase_turns:
-                all_speaker_types.append(
-                    SPEAKER_TYPE_MAP.get(turn.speaker_type, 0)
-                )
-
-    if not all_turn_vectors:
-        # Fallback: no parseable turns
-        hidden_dim = encoder.config.hidden_size
-        turn_vectors = torch.zeros(1, hidden_dim, device=device)
-        turn_speaker_types = torch.tensor([0], device=device)
     else:
-        turn_vectors = torch.cat(all_turn_vectors, dim=0)
-        turn_speaker_types = torch.tensor(all_speaker_types, device=device)
+        phase_vectors = []
 
-    return turn_vectors, turn_speaker_types, pet_turns, resp_turns
+    # 4. Reassemble per-sample
+    sample_phase_vectors: list[list[torch.Tensor]] = [[] for _ in samples]
+    sample_phase_turns: list[list[Turn]] = [[] for _ in samples]
+    for p_idx, (s_idx, phase_type) in enumerate(phase_index):
+        sample_phase_vectors[s_idx].append(phase_vectors[p_idx])
+        turns = all_pet_turns[s_idx] if phase_type == "pet" else all_resp_turns[s_idx]
+        sample_phase_turns[s_idx].extend(turns)
+
+    results = []
+    for s_idx in range(len(samples)):
+        pet = all_pet_turns[s_idx]
+        resp = all_resp_turns[s_idx]
+        if sample_phase_vectors[s_idx]:
+            tv = torch.cat(sample_phase_vectors[s_idx], dim=0)
+            speaker_types = [
+                SPEAKER_TYPE_MAP.get(t.speaker_type, 0)
+                for t in sample_phase_turns[s_idx]
+            ]
+            st = torch.tensor(speaker_types, device=device)
+        else:
+            tv = torch.zeros(1, hidden_dim, device=device)
+            st = torch.tensor([0], device=device)
+        results.append((tv, st, pet, resp))
+
+    return results
 
 
 # ── Training ──────────────────────────────────────────────────────────────────
@@ -821,11 +878,12 @@ def train():
         else nullcontext()
     )
 
-    os.environ.setdefault("WANDB_PROJECT", "supreme-court-encoder")
+    os.environ.setdefault("WANDB_PROJECT", "supreme-court")
     config = {
         "encoder": args.encoder,
         "max_length": args.max_length,
         "epochs": args.epochs,
+        "batch_size": args.batch_size,
         "lr": args.lr,
         "head_lr": head_lr,
         "weight_decay": args.weight_decay,
@@ -845,7 +903,7 @@ def train():
         "aux_weight": args.aux_weight,
         "eval_year": args.eval_year,
     }
-    wandb.init(project="supreme-court-encoder", name=run_name, config=config)
+    wandb.init(project="supreme-court", name=run_name, config=config)
 
     # Load data
     all_samples = load_transcripts(args.data_dir)
@@ -887,7 +945,8 @@ def train():
     ], weight_decay=args.weight_decay)
 
     # Cosine schedule with linear warmup
-    total_steps = (len(train_samples) * args.epochs) // args.grad_accum
+    batches_per_epoch = (len(train_samples) + args.batch_size - 1) // args.batch_size
+    total_steps = (batches_per_epoch * args.epochs) // args.grad_accum
     warmup_steps = int(total_steps * args.warmup_ratio)
 
     def lr_lambda(step):
@@ -934,81 +993,87 @@ def train():
         indices = list(range(len(train_samples)))
         random.shuffle(indices)
 
-        pbar = tqdm(range(len(train_samples)), desc=f"Epoch {epoch+1}/{args.epochs}")
+        pbar = tqdm(range(batches_per_epoch), desc=f"Epoch {epoch+1}/{args.epochs}")
 
         for batch_idx in pbar:
-            sample = train_samples[indices[batch_idx]]
+            # Gather batch of samples
+            batch_start = batch_idx * args.batch_size
+            batch_end = min(batch_start + args.batch_size, len(train_samples))
+            batch_samples = [train_samples[indices[i]] for i in range(batch_start, batch_end)]
+            B = len(batch_samples)
 
-            # Encode transcript
-            turn_vectors, turn_speaker_types, pet_turns, resp_turns = prepare_sample(
-                sample, encoder, tokenizer, max_length, device, amp_ctx,
+            # Batched encode: one encoder call for all phases in this batch
+            batch_results = prepare_batch(
+                batch_samples, encoder, tokenizer, max_length, device, amp_ctx,
                 no_transcript=args.no_transcript,
             )
 
-            # Prepare justice IDs and labels
-            justice_names = list(sample["votes"].keys())
-            justice_ids = torch.tensor(
-                [registry.get_or_add(n) for n in justice_names],
-                device=device,
-            )
-            labels = torch.tensor(
-                [sample["votes"][n] for n in justice_names],
-                device=device, dtype=torch.long,
-            )
-
-            # Forward through head
-            logits, aux_preds = model(
-                turn_vectors, turn_speaker_types, justice_ids,
-                no_transcript=args.no_transcript,
-                no_speaker_embeddings=args.no_speaker_embeddings,
-                no_self_attention=args.no_self_attention,
-            )
-
-            # Vote loss
-            vote_loss = F.cross_entropy(
-                logits, labels, label_smoothing=args.label_smoothing,
-            )
-
-            # Auxiliary loss
-            aux_loss = torch.tensor(0.0, device=device)
-            if args.aux_weight > 0:
-                aux_targets = compute_aux_targets(
-                    justice_names, pet_turns, resp_turns, device
+            # Process each sample through the head, accumulate loss
+            accumulated_loss = None
+            for s_idx, (sample, (turn_vectors, turn_speaker_types, pet_turns, resp_turns)) in enumerate(
+                zip(batch_samples, batch_results)
+            ):
+                justice_names = list(sample["votes"].keys())
+                justice_ids = torch.tensor(
+                    [registry.get_or_add(n) for n in justice_names],
+                    device=device,
                 )
-                aux_loss = F.mse_loss(aux_preds, aux_targets)
+                labels = torch.tensor(
+                    [sample["votes"][n] for n in justice_names],
+                    device=device, dtype=torch.long,
+                )
 
-            total_loss = (vote_loss + args.aux_weight * aux_loss) / args.grad_accum
-            total_loss.backward()
+                logits, aux_preds = model(
+                    turn_vectors, turn_speaker_types, justice_ids,
+                    no_transcript=args.no_transcript,
+                    no_speaker_embeddings=args.no_speaker_embeddings,
+                    no_self_attention=args.no_self_attention,
+                )
 
-            # Track metrics (detached)
-            with torch.no_grad():
-                accum_loss += vote_loss.item()
-                accum_aux_loss += aux_loss.item()
-                preds = logits.argmax(dim=1)
-                accum_correct += (preds == labels).sum().item()
-                accum_total += len(labels)
+                vote_loss = F.cross_entropy(
+                    logits, labels, label_smoothing=args.label_smoothing,
+                )
 
-                probs = logits.softmax(dim=1)
-                correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
-                accum_vote_prob_sum += correct_probs.sum().item()
-                accum_vote_prob_n += len(labels)
-
-                pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
-                true_majority = case_result(sample["votes"])
-                if true_majority is not None:
-                    accum_case_correct += int(pred_majority == true_majority)
-                    accum_cases += 1
-                    accum_case_prob_sum += majority_correct_prob(
-                        correct_probs.tolist()
+                aux_loss = torch.tensor(0.0, device=device)
+                if args.aux_weight > 0:
+                    aux_targets = compute_aux_targets(
+                        justice_names, pet_turns, resp_turns, device,
                     )
-                    accum_case_prob_n += 1
+                    aux_loss = F.mse_loss(aux_preds, aux_targets)
 
-            del turn_vectors, turn_speaker_types, logits, aux_preds, total_loss
-            log_micro_batches += 1
+                sample_loss = (vote_loss + args.aux_weight * aux_loss) / (args.grad_accum * B)
+                accumulated_loss = sample_loss if accumulated_loss is None else accumulated_loss + sample_loss
+
+                # Track metrics (detached)
+                with torch.no_grad():
+                    accum_loss += vote_loss.item()
+                    accum_aux_loss += aux_loss.item()
+                    preds = logits.argmax(dim=1)
+                    accum_correct += (preds == labels).sum().item()
+                    accum_total += len(labels)
+
+                    probs = logits.softmax(dim=1)
+                    correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
+                    accum_vote_prob_sum += correct_probs.sum().item()
+                    accum_vote_prob_n += len(labels)
+
+                    pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
+                    true_majority = case_result(sample["votes"])
+                    if true_majority is not None:
+                        accum_case_correct += int(pred_majority == true_majority)
+                        accum_cases += 1
+                        accum_case_prob_sum += majority_correct_prob(
+                            correct_probs.tolist()
+                        )
+                        accum_case_prob_n += 1
+
+            accumulated_loss.backward()
+            del accumulated_loss
+            log_micro_batches += B
             micro_step += 1
 
             # Optimizer step
-            if micro_step % args.grad_accum == 0 or (batch_idx + 1) == len(train_samples):
+            if micro_step % args.grad_accum == 0 or (batch_idx + 1) == batches_per_epoch:
                 if args.grad_clip > 0:
                     nn.utils.clip_grad_norm_(
                         list(encoder.parameters()) + list(model.parameters()),
@@ -1021,7 +1086,7 @@ def train():
                 log_steps_accum += 1
 
                 # Log metrics
-                if log_steps_accum >= args.log_every or (batch_idx + 1) == len(train_samples):
+                if log_steps_accum >= args.log_every or (batch_idx + 1) == batches_per_epoch:
                     n = max(log_micro_batches, 1)
                     metrics = {
                         "train/loss": accum_loss / n,
@@ -1121,50 +1186,58 @@ def evaluate(
     case_results_list: list[bool] = []
     case_prob_list: list[float] = []
 
+    eval_batch_size = args.batch_size * 2  # larger batches for eval (no backward)
+    num_eval_batches = (len(eval_samples) + eval_batch_size - 1) // eval_batch_size
+
     print(f"\n── Evaluation ({len(eval_samples)} cases, epoch {epoch+1}) ──\n")
 
-    for sample in tqdm(eval_samples, desc="Evaluating"):
-        turn_vectors, turn_speaker_types, pet_turns, resp_turns = prepare_sample(
-            sample, encoder, tokenizer, max_length, device, amp_ctx,
+    for eb_idx in tqdm(range(num_eval_batches), desc="Evaluating"):
+        eb_start = eb_idx * eval_batch_size
+        eb_end = min(eb_start + eval_batch_size, len(eval_samples))
+        batch_samples = eval_samples[eb_start:eb_end]
+
+        batch_results = prepare_batch(
+            batch_samples, encoder, tokenizer, max_length, device, amp_ctx,
             no_transcript=args.no_transcript,
         )
 
-        justice_names = list(sample["votes"].keys())
-        justice_ids = torch.tensor(
-            [registry.get_or_add(n) for n in justice_names],
-            device=device,
-        )
-        labels = torch.tensor(
-            [sample["votes"][n] for n in justice_names],
-            device=device, dtype=torch.long,
-        )
+        for sample, (turn_vectors, turn_speaker_types, pet_turns, resp_turns) in zip(
+            batch_samples, batch_results
+        ):
+            justice_names = list(sample["votes"].keys())
+            justice_ids = torch.tensor(
+                [registry.get_or_add(n) for n in justice_names],
+                device=device,
+            )
+            labels = torch.tensor(
+                [sample["votes"][n] for n in justice_names],
+                device=device, dtype=torch.long,
+            )
 
-        logits, _ = model(
-            turn_vectors, turn_speaker_types, justice_ids,
-            no_transcript=args.no_transcript,
-            no_speaker_embeddings=args.no_speaker_embeddings,
-            no_self_attention=args.no_self_attention,
-        )
+            logits, _ = model(
+                turn_vectors, turn_speaker_types, justice_ids,
+                no_transcript=args.no_transcript,
+                no_speaker_embeddings=args.no_speaker_embeddings,
+                no_self_attention=args.no_self_attention,
+            )
 
-        preds = logits.argmax(dim=1)
-        probs = logits.softmax(dim=1)
-        correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
+            preds = logits.argmax(dim=1)
+            probs = logits.softmax(dim=1)
+            correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
 
-        for j, name in enumerate(justice_names):
-            correct = (preds[j] == labels[j]).item()
-            if name not in all_justice_results:
-                all_justice_results[name] = []
-                all_justice_probs[name] = []
-            all_justice_results[name].append(correct)
-            all_justice_probs[name].append(correct_probs[j].item())
+            for j, name in enumerate(justice_names):
+                correct = (preds[j] == labels[j]).item()
+                if name not in all_justice_results:
+                    all_justice_results[name] = []
+                    all_justice_probs[name] = []
+                all_justice_results[name].append(correct)
+                all_justice_probs[name].append(correct_probs[j].item())
 
-        pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
-        true_majority = case_result(sample["votes"])
-        if true_majority is not None:
-            case_results_list.append(pred_majority == true_majority)
-            case_prob_list.append(majority_correct_prob(correct_probs.tolist()))
-
-        del turn_vectors, turn_speaker_types
+            pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
+            true_majority = case_result(sample["votes"])
+            if true_majority is not None:
+                case_results_list.append(pred_majority == true_majority)
+                case_prob_list.append(majority_correct_prob(correct_probs.tolist()))
 
     # Summary
     print("\n  Justice vote accuracy (greedy / estimated):")
