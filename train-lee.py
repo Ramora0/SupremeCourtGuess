@@ -506,6 +506,10 @@ def parse_args():
         "--ffn-dim", type=int, default=SELF_ATTN_FFN_DIM,
         help=f"Self-attention FFN dim (default: {SELF_ATTN_FFN_DIM})",
     )
+    parser.add_argument(
+        "--no-transcript", action="store_true",
+        help="Zero out transcript hidden states (ablation to test if transcript is used)",
+    )
     return parser.parse_args()
 
 
@@ -603,11 +607,17 @@ def train():
             batch_samples = train_samples[batch_start : batch_start + BATCH_SIZE]
 
             # Batched backbone forward + incremental blend
-            blended_list = get_blended_hidden_states(
-                backbone, tokenizer,
-                [s["transcript"] for s in batch_samples],
-                MAX_SEQ_LENGTH, device, head.layer_weighter,
-            )
+            if args.no_transcript:
+                blended_list = [
+                    torch.zeros(1, 1, llm_dim, device=device)
+                    for _ in batch_samples
+                ]
+            else:
+                blended_list = get_blended_hidden_states(
+                    backbone, tokenizer,
+                    [s["transcript"] for s in batch_samples],
+                    MAX_SEQ_LENGTH, device, head.layer_weighter,
+                )
 
             # Process each sample in the batch through the head
             batch_loss = 0.0
@@ -713,7 +723,8 @@ def train():
         # End of epoch evaluation
         if eval_samples:
             evaluate(head, backbone, tokenizer, eval_samples, registry, device,
-                     global_step, epoch)
+                     global_step, epoch, no_transcript=args.no_transcript,
+                     llm_dim=llm_dim)
 
     # Save head weights
     run_name = args.run_name or f"scotus-crossattn-{args.model}"
@@ -750,6 +761,8 @@ def evaluate(
     device: torch.device,
     global_step: int,
     epoch: int,
+    no_transcript: bool = False,
+    llm_dim: int = 0,
 ):
     head.eval()
     all_justice_results: dict[str, list[bool]] = {}
@@ -764,11 +777,17 @@ def evaluate(
         batch_start = batch_idx * BATCH_SIZE
         batch_samples = eval_samples[batch_start : batch_start + BATCH_SIZE]
 
-        blended_list = get_blended_hidden_states(
-            backbone, tokenizer,
-            [s["transcript"] for s in batch_samples],
-            MAX_SEQ_LENGTH, device, head.layer_weighter,
-        )
+        if no_transcript:
+            blended_list = [
+                torch.zeros(1, 1, llm_dim, device=device)
+                for _ in batch_samples
+            ]
+        else:
+            blended_list = get_blended_hidden_states(
+                backbone, tokenizer,
+                [s["transcript"] for s in batch_samples],
+                MAX_SEQ_LENGTH, device, head.layer_weighter,
+            )
 
         for sample, blended in zip(batch_samples, blended_list):
             justice_names = list(sample["votes"].keys())

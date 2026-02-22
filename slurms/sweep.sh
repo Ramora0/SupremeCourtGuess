@@ -5,3 +5,4 @@ sbatch slurms/a100.slurm 3b-small-head --model 3b --head-dim 32 --num-queries 2 
 sbatch slurms/a100.slurm 3b-large-head --model 3b --head-dim 128 --num-queries 8 --self-attn-layers 2 --ffn-dim 512
 sbatch slurms/a100.slurm 3b-accum8 --model 3b --grad-accum 8
 sbatch slurms/a100.slurm 3b-accum32 --model 3b --grad-accum 32
+sbatch slurms/a100.slurm 3b-no-transcript --model 3b --no-transcript
