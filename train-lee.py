@@ -29,10 +29,10 @@ VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
 EVAL_YEAR = "2019"
 
 # Training
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 0.01
-GRAD_ACCUM_STEPS = 4  # effective batch = BATCH_SIZE * GRAD_ACCUM_STEPS = 16
+GRAD_ACCUM_STEPS = 8  # effective batch = BATCH_SIZE * GRAD_ACCUM_STEPS = 16
 WARMUP_RATIO = 0.05
 NUM_EPOCHS = 3
 HEAD_DIM = 256
@@ -215,55 +215,44 @@ class JusticeEmbeddings(nn.Module):
 
 
 class TranscriptCrossAttention(nn.Module):
-    """Cross-attention from justice queries to transcript hidden states."""
+    """Cross-attention from justice queries to shared transcript K/V."""
 
-    def __init__(self, llm_dim: int, head_dim: int, num_heads: int):
+    def __init__(self, llm_dim: int, head_dim: int):
         super().__init__()
-        self.num_heads = num_heads
         self.head_dim = head_dim
-        inner_dim = num_heads * head_dim
-        # Project LLM hidden states to K and V
-        self.kv_proj = nn.Linear(llm_dim, inner_dim * 2, bias=False)
-        # Q comes from justice embeddings (already head_dim * num_queries)
-        # We treat num_queries == num_heads, each query vector is one head's Q
-        self.out_proj = nn.Linear(inner_dim, inner_dim, bias=False)
-        self.layer_norm = nn.LayerNorm(inner_dim)
+        # Shared K and V projection: llm_dim → head_dim each
+        self.kv_proj = nn.Linear(llm_dim, head_dim * 2, bias=False)
+        self.out_proj = nn.Linear(head_dim, head_dim, bias=False)
+        self.layer_norm = nn.LayerNorm(head_dim)
 
     def forward(
         self, justice_queries: torch.Tensor, transcript: torch.Tensor
     ) -> torch.Tensor:
         """
         Args:
-            justice_queries: (J, num_heads, head_dim)
+            justice_queries: (J, Q, head_dim) — Q query vectors per justice
             transcript: (1, S, llm_dim)
         Returns:
-            output: (J, num_heads, head_dim)
+            output: (J, Q, head_dim)
         """
-        J, H, D = justice_queries.shape
+        J, Q, D = justice_queries.shape
         S = transcript.shape[1]
 
-        # Project transcript to K, V
-        kv = self.kv_proj(transcript.squeeze(0))  # (S, H*D*2)
-        k, v = kv.chunk(2, dim=-1)  # each (S, H*D)
-        k = k.view(S, H, D).permute(1, 0, 2)  # (H, S, D)
-        v = v.view(S, H, D).permute(1, 0, 2)  # (H, S, D)
+        # Project transcript to shared K, V (each head_dim)
+        kv = self.kv_proj(transcript.squeeze(0))  # (S, D*2)
+        k, v = kv.chunk(2, dim=-1)  # each (S, D)
 
-        # Prepare Q: (J, H, D) -> (J*H, 1, D) -> reshape for multi-head
-        q = justice_queries  # (J, H, D)
+        # Each of J*Q query vectors attends to the same K/V
+        q = justice_queries.reshape(J * Q, 1, D)  # (J*Q, 1, D)
+        k = k.unsqueeze(0).expand(J * Q, -1, -1)  # (J*Q, S, D)
+        v = v.unsqueeze(0).expand(J * Q, -1, -1)  # (J*Q, S, D)
 
-        # Use scaled_dot_product_attention per justice
-        # Expand K, V for all justices: (H, S, D) -> (J*H, S, D)
-        k = k.unsqueeze(0).expand(J, -1, -1, -1).reshape(J * H, S, D)
-        v = v.unsqueeze(0).expand(J, -1, -1, -1).reshape(J * H, S, D)
-        q = q.reshape(J * H, 1, D)  # (J*H, 1, D)
-
-        attn_out = F.scaled_dot_product_attention(q, k, v)  # (J*H, 1, D)
-        attn_out = attn_out.view(J, H, D)  # (J, H, D)
+        attn_out = F.scaled_dot_product_attention(q, k, v)  # (J*Q, 1, D)
+        attn_out = attn_out.view(J, Q, D)
 
         # Output projection + residual + layer norm
-        flat = attn_out.view(J, H * D)  # (J, H*D)
-        out = self.out_proj(flat).view(J, H, D)
-        out = self.layer_norm((out + justice_queries).view(J, H * D)).view(J, H, D)
+        out = self.out_proj(attn_out.view(J * Q, D)).view(J, Q, D)
+        out = self.layer_norm((out + justice_queries).view(J * Q, D)).view(J, Q, D)
         return out
 
 
@@ -309,12 +298,12 @@ class SCOTUSVoteHead(nn.Module):
 
         self.layer_weighter = LayerWeighter(num_llm_layers)
         self.justice_embeddings = JusticeEmbeddings(max_justices, num_queries, head_dim)
-        self.cross_attention = TranscriptCrossAttention(llm_dim, head_dim, num_queries)
+        self.cross_attention = TranscriptCrossAttention(llm_dim, head_dim)
 
-        inner_dim = num_queries * head_dim
+        # Self-attention over J*Q tokens of dim head_dim
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=inner_dim,
-            nhead=num_queries,
+            d_model=head_dim,
+            nhead=num_queries,  # 8 heads of 32 dims each
             dim_feedforward=self_attn_ffn_dim,
             batch_first=True,
             norm_first=True,
@@ -342,11 +331,12 @@ class SCOTUSVoteHead(nn.Module):
         # 3. Cross-attend to transcript
         cross_out = self.cross_attention(queries, blended)  # (J, Q, head_dim)
 
-        # 4. Self-attention across justices
-        J = cross_out.shape[0]
-        flat = cross_out.view(J, -1).unsqueeze(0)  # (1, J, Q*head_dim)
-        self_out = self.self_attention(flat)  # (1, J, Q*head_dim)
-        self_out = self_out.squeeze(0).view(J, self.num_queries, self.head_dim)
+        # 4. Self-attention: flatten to (1, J*Q, head_dim) so all justice
+        #    query vectors see each other
+        J, Q, D = cross_out.shape
+        flat = cross_out.view(1, J * Q, D)  # (1, J*Q, head_dim)
+        self_out = self.self_attention(flat)  # (1, J*Q, head_dim)
+        self_out = self_out.squeeze(0).view(J, Q, D)
 
         # 5. Classify
         logits = self.vote_classifier(self_out)  # (J, 2)
