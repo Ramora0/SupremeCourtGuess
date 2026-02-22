@@ -29,16 +29,17 @@ VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
 EVAL_YEAR = "2019"
 
 # Training
-BATCH_SIZE = 2
-LEARNING_RATE = 1e-4
+BATCH_SIZE = 1
+LEARNING_RATE = 3e-5
 WEIGHT_DECAY = 0.01
-GRAD_ACCUM_STEPS = 8  # effective batch = BATCH_SIZE * GRAD_ACCUM_STEPS = 16
+GRAD_ACCUM_STEPS = 16  # effective batch = BATCH_SIZE * GRAD_ACCUM_STEPS = 16
 WARMUP_RATIO = 0.05
 NUM_EPOCHS = 3
-HEAD_DIM = 256
-NUM_QUERIES_PER_JUSTICE = 8
-SELF_ATTN_LAYERS = 2
-SELF_ATTN_FFN_DIM = 1024
+HEAD_DIM = 64
+NUM_QUERIES_PER_JUSTICE = 4
+SELF_ATTN_LAYERS = 1
+LOG_EVERY_STEPS = 8  # log metrics averaged over this many optimizer steps
+SELF_ATTN_FFN_DIM = 256
 MAX_JUSTICES = 128
 
 
@@ -215,44 +216,55 @@ class JusticeEmbeddings(nn.Module):
 
 
 class TranscriptCrossAttention(nn.Module):
-    """Cross-attention from justice queries to shared transcript K/V."""
+    """Cross-attention from justice queries to transcript hidden states."""
 
-    def __init__(self, llm_dim: int, head_dim: int):
+    def __init__(self, llm_dim: int, head_dim: int, num_heads: int):
         super().__init__()
+        self.num_heads = num_heads
         self.head_dim = head_dim
-        # Shared K and V projection: llm_dim → head_dim each
-        self.kv_proj = nn.Linear(llm_dim, head_dim * 2, bias=False)
-        self.out_proj = nn.Linear(head_dim, head_dim, bias=False)
-        self.layer_norm = nn.LayerNorm(head_dim)
+        inner_dim = num_heads * head_dim
+        # Project LLM hidden states to K and V
+        self.kv_proj = nn.Linear(llm_dim, inner_dim * 2, bias=False)
+        # Q comes from justice embeddings (already head_dim * num_queries)
+        # We treat num_queries == num_heads, each query vector is one head's Q
+        self.out_proj = nn.Linear(inner_dim, inner_dim, bias=False)
+        self.layer_norm = nn.LayerNorm(inner_dim)
 
     def forward(
         self, justice_queries: torch.Tensor, transcript: torch.Tensor
     ) -> torch.Tensor:
         """
         Args:
-            justice_queries: (J, Q, head_dim) — Q query vectors per justice
+            justice_queries: (J, num_heads, head_dim)
             transcript: (1, S, llm_dim)
         Returns:
-            output: (J, Q, head_dim)
+            output: (J, num_heads, head_dim)
         """
-        J, Q, D = justice_queries.shape
+        J, H, D = justice_queries.shape
         S = transcript.shape[1]
 
-        # Project transcript to shared K, V (each head_dim)
-        kv = self.kv_proj(transcript.squeeze(0))  # (S, D*2)
-        k, v = kv.chunk(2, dim=-1)  # each (S, D)
+        # Project transcript to K, V
+        kv = self.kv_proj(transcript.squeeze(0))  # (S, H*D*2)
+        k, v = kv.chunk(2, dim=-1)  # each (S, H*D)
+        k = k.view(S, H, D).permute(1, 0, 2)  # (H, S, D)
+        v = v.view(S, H, D).permute(1, 0, 2)  # (H, S, D)
 
-        # Each of J*Q query vectors attends to the same K/V
-        q = justice_queries.reshape(J * Q, 1, D)  # (J*Q, 1, D)
-        k = k.unsqueeze(0).expand(J * Q, -1, -1)  # (J*Q, S, D)
-        v = v.unsqueeze(0).expand(J * Q, -1, -1)  # (J*Q, S, D)
+        # Prepare Q: (J, H, D) -> (J*H, 1, D) -> reshape for multi-head
+        q = justice_queries  # (J, H, D)
 
-        attn_out = F.scaled_dot_product_attention(q, k, v)  # (J*Q, 1, D)
-        attn_out = attn_out.view(J, Q, D)
+        # Use scaled_dot_product_attention per justice
+        # Expand K, V for all justices: (H, S, D) -> (J*H, S, D)
+        k = k.unsqueeze(0).expand(J, -1, -1, -1).reshape(J * H, S, D)
+        v = v.unsqueeze(0).expand(J, -1, -1, -1).reshape(J * H, S, D)
+        q = q.reshape(J * H, 1, D)  # (J*H, 1, D)
+
+        attn_out = F.scaled_dot_product_attention(q, k, v)  # (J*H, 1, D)
+        attn_out = attn_out.view(J, H, D)  # (J, H, D)
 
         # Output projection + residual + layer norm
-        out = self.out_proj(attn_out.view(J * Q, D)).view(J, Q, D)
-        out = self.layer_norm((out + justice_queries).view(J * Q, D)).view(J, Q, D)
+        flat = attn_out.view(J, H * D)  # (J, H*D)
+        out = self.out_proj(flat).view(J, H, D)
+        out = self.layer_norm((out + justice_queries).view(J, H * D)).view(J, H, D)
         return out
 
 
@@ -298,12 +310,12 @@ class SCOTUSVoteHead(nn.Module):
 
         self.layer_weighter = LayerWeighter(num_llm_layers)
         self.justice_embeddings = JusticeEmbeddings(max_justices, num_queries, head_dim)
-        self.cross_attention = TranscriptCrossAttention(llm_dim, head_dim)
+        self.cross_attention = TranscriptCrossAttention(llm_dim, head_dim, num_queries)
 
-        # Self-attention over J*Q tokens of dim head_dim
+        inner_dim = num_queries * head_dim
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=head_dim,
-            nhead=num_queries,  # 8 heads of 32 dims each
+            d_model=inner_dim,
+            nhead=num_queries,
             dim_feedforward=self_attn_ffn_dim,
             batch_first=True,
             norm_first=True,
@@ -331,12 +343,11 @@ class SCOTUSVoteHead(nn.Module):
         # 3. Cross-attend to transcript
         cross_out = self.cross_attention(queries, blended)  # (J, Q, head_dim)
 
-        # 4. Self-attention: flatten to (1, J*Q, head_dim) so all justice
-        #    query vectors see each other
-        J, Q, D = cross_out.shape
-        flat = cross_out.view(1, J * Q, D)  # (1, J*Q, head_dim)
-        self_out = self.self_attention(flat)  # (1, J*Q, head_dim)
-        self_out = self_out.squeeze(0).view(J, Q, D)
+        # 4. Self-attention across justices
+        J = cross_out.shape[0]
+        flat = cross_out.view(J, -1).unsqueeze(0)  # (1, J, Q*head_dim)
+        self_out = self.self_attention(flat)  # (1, J, Q*head_dim)
+        self_out = self_out.squeeze(0).view(J, self.num_queries, self.head_dim)
 
         # 5. Classify
         logits = self.vote_classifier(self_out)  # (J, 2)
@@ -471,6 +482,30 @@ def parse_args():
         "--lr", type=float, default=LEARNING_RATE,
         help=f"Learning rate (default: {LEARNING_RATE})",
     )
+    parser.add_argument(
+        "--run-name", type=str, default=None,
+        help="W&B run name (default: auto-generated)",
+    )
+    parser.add_argument(
+        "--grad-accum", type=int, default=GRAD_ACCUM_STEPS,
+        help=f"Gradient accumulation steps (default: {GRAD_ACCUM_STEPS})",
+    )
+    parser.add_argument(
+        "--head-dim", type=int, default=HEAD_DIM,
+        help=f"Head dimension (default: {HEAD_DIM})",
+    )
+    parser.add_argument(
+        "--num-queries", type=int, default=NUM_QUERIES_PER_JUSTICE,
+        help=f"Number of query vectors per justice (default: {NUM_QUERIES_PER_JUSTICE})",
+    )
+    parser.add_argument(
+        "--self-attn-layers", type=int, default=SELF_ATTN_LAYERS,
+        help=f"Self-attention layers (default: {SELF_ATTN_LAYERS})",
+    )
+    parser.add_argument(
+        "--ffn-dim", type=int, default=SELF_ATTN_FFN_DIM,
+        help=f"Self-attention FFN dim (default: {SELF_ATTN_FFN_DIM})",
+    )
     return parser.parse_args()
 
 
@@ -481,17 +516,18 @@ def train():
     os.environ.setdefault("WANDB_PROJECT", "supreme-court")
     wandb.init(
         project="supreme-court",
-        name=f"scotus-crossattn-{args.model}",
+        name=args.run_name or f"scotus-crossattn-{args.model}",
         config={
             "model": args.model,
             "lr": args.lr,
             "epochs": args.epochs,
             "batch_size": BATCH_SIZE,
-            "grad_accum": GRAD_ACCUM_STEPS,
-            "effective_batch": BATCH_SIZE * GRAD_ACCUM_STEPS,
-            "head_dim": HEAD_DIM,
-            "num_queries": NUM_QUERIES_PER_JUSTICE,
-            "self_attn_layers": SELF_ATTN_LAYERS,
+            "grad_accum": args.grad_accum,
+            "effective_batch": BATCH_SIZE * args.grad_accum,
+            "head_dim": args.head_dim,
+            "num_queries": args.num_queries,
+            "self_attn_layers": args.self_attn_layers,
+            "ffn_dim": args.ffn_dim,
             "max_seq_length": MAX_SEQ_LENGTH,
         },
     )
@@ -517,6 +553,10 @@ def train():
     head = SCOTUSVoteHead(
         num_llm_layers=num_llm_layers,
         llm_dim=llm_dim,
+        head_dim=args.head_dim,
+        num_queries=args.num_queries,
+        self_attn_layers=args.self_attn_layers,
+        self_attn_ffn_dim=args.ffn_dim,
     ).to(device).float()
 
     total_params = sum(p.numel() for p in head.parameters() if p.requires_grad)
@@ -526,7 +566,7 @@ def train():
     optimizer = torch.optim.AdamW(
         head.parameters(), lr=args.lr, weight_decay=WEIGHT_DECAY
     )
-    effective_batch = BATCH_SIZE * GRAD_ACCUM_STEPS
+    effective_batch = BATCH_SIZE * args.grad_accum
     total_steps = (len(train_samples) * args.epochs) // effective_batch
     warmup_steps = int(total_steps * WARMUP_RATIO)
 
@@ -549,6 +589,8 @@ def train():
     accum_vote_prob_n = 0
     accum_case_prob_sum = 0.0  # estimated: sum of P(majority correct)
     accum_case_prob_n = 0
+    log_steps_accum = 0  # counts optimizer steps since last log
+    log_micro_batches = 0  # counts micro-batches since last log (for loss avg)
     micro_step = 0  # counts batches within a grad accum window
 
     for epoch in range(args.epochs):
@@ -569,6 +611,8 @@ def train():
 
             # Process each sample in the batch through the head
             batch_loss = 0.0
+            accumulated_loss = None
+            sample_logits_labels = []
             for sample, blended in zip(batch_samples, blended_list):
                 justice_names = list(sample["votes"].keys())
                 justice_ids = torch.tensor(
@@ -581,76 +625,89 @@ def train():
                 )
 
                 logits = head(blended, justice_ids)  # (J, 2)
-                loss = F.cross_entropy(logits, labels) / (GRAD_ACCUM_STEPS * len(batch_samples))
-                loss.backward()
-                batch_loss += loss.item() * GRAD_ACCUM_STEPS * len(batch_samples)
+                loss = F.cross_entropy(logits, labels) / (args.grad_accum * len(batch_samples))
+                accumulated_loss = loss if accumulated_loss is None else accumulated_loss + loss
+                batch_loss += loss.item() * args.grad_accum * len(batch_samples)
+                sample_logits_labels.append((logits.detach(), labels, sample))
 
-                with torch.no_grad():
-                    preds = logits.argmax(dim=1)
-                    accum_correct += (preds == labels).sum().item()
-                    accum_total += len(labels)
+            accumulated_loss.backward()
+            del accumulated_loss
 
-                    # Estimated accuracy: P(correct) per vote from softmax
-                    probs = logits.softmax(dim=1)  # (J, 2)
-                    correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
-                    accum_vote_prob_sum += correct_probs.sum().item()
-                    accum_vote_prob_n += len(labels)
+            # Compute metrics (no grad needed, logits already detached)
+            for logits, labels, sample in sample_logits_labels:
+                preds = logits.argmax(dim=1)
+                accum_correct += (preds == labels).sum().item()
+                accum_total += len(labels)
 
-                    # Case level
-                    pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
-                    true_majority = case_result(sample["votes"])
-                    if true_majority is not None:
-                        accum_case_correct += int(pred_majority == true_majority)
-                        accum_cases += 1
-                        accum_case_prob_sum += majority_correct_prob(correct_probs.tolist())
-                        accum_case_prob_n += 1
+                # Estimated accuracy: P(correct) per vote from softmax
+                probs = logits.softmax(dim=1)  # (J, 2)
+                correct_probs = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
+                accum_vote_prob_sum += correct_probs.sum().item()
+                accum_vote_prob_n += len(labels)
+
+                # Case level
+                pred_majority = 0 if (preds == 0).sum() > (preds == 1).sum() else 1
+                true_majority = case_result(sample["votes"])
+                if true_majority is not None:
+                    accum_case_correct += int(pred_majority == true_majority)
+                    accum_cases += 1
+                    accum_case_prob_sum += majority_correct_prob(correct_probs.tolist())
+                    accum_case_prob_n += 1
+            del sample_logits_labels
 
             del blended_list
             accum_loss += batch_loss / len(batch_samples)
+            log_micro_batches += 1
             micro_step += 1
 
-            # Optimizer step after GRAD_ACCUM_STEPS micro-batches
-            if micro_step % GRAD_ACCUM_STEPS == 0 or (batch_idx + 1) == num_batches:
+            # Optimizer step after grad_accum micro-batches
+            if micro_step % args.grad_accum == 0 or (batch_idx + 1) == num_batches:
                 nn.utils.clip_grad_norm_(head.parameters(), 1.0)
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
                 global_step += 1
 
-                layer_weights = head.get_layer_weights()
-                num_accum = micro_step if micro_step <= GRAD_ACCUM_STEPS else GRAD_ACCUM_STEPS
-                metrics = {
-                    "train/loss": accum_loss / num_accum,
-                    "train/greedy_vote_acc": accum_correct / max(accum_total, 1),
-                    "train/greedy_case_acc": accum_case_correct / max(accum_cases, 1),
-                    "train/est_vote_acc": accum_vote_prob_sum / max(accum_vote_prob_n, 1),
-                    "train/est_case_acc": accum_case_prob_sum / max(accum_case_prob_n, 1),
-                    "train/lr": scheduler.get_last_lr()[0],
-                    "train/step": global_step,
-                }
-                top_vals, top_idx = layer_weights.topk(5)
-                for rank, (val, idx) in enumerate(zip(top_vals, top_idx)):
-                    metrics[f"layers/top{rank+1}_layer"] = idx.item()
-                    metrics[f"layers/top{rank+1}_weight"] = val.item()
+                log_steps_accum += 1
 
-                wandb.log(metrics, step=global_step)
-                pbar.set_postfix(
-                    loss=f"{accum_loss / num_accum:.4f}",
-                    gv=f"{accum_correct / max(accum_total, 1):.3f}",
-                    ev=f"{accum_vote_prob_sum / max(accum_vote_prob_n, 1):.3f}",
-                    gc=f"{accum_case_correct / max(accum_cases, 1):.3f}",
-                    ec=f"{accum_case_prob_sum / max(accum_case_prob_n, 1):.3f}",
-                )
+                # Log metrics averaged over LOG_EVERY_STEPS optimizer steps
+                if log_steps_accum >= LOG_EVERY_STEPS or (batch_idx + 1) == num_batches:
+                    layer_weights = head.get_layer_weights()
+                    metrics = {
+                        "train/loss": accum_loss / max(log_micro_batches, 1),
+                        "train/greedy_vote_acc": accum_correct / max(accum_total, 1),
+                        "train/greedy_case_acc": accum_case_correct / max(accum_cases, 1),
+                        "train/est_vote_acc": accum_vote_prob_sum / max(accum_vote_prob_n, 1),
+                        "train/est_case_acc": accum_case_prob_sum / max(accum_case_prob_n, 1),
+                        "train/lr": scheduler.get_last_lr()[0],
+                        "train/step": global_step,
+                    }
+                    top_vals, top_idx = layer_weights.topk(5)
+                    for rank, (val, idx) in enumerate(zip(top_vals, top_idx)):
+                        metrics[f"layers/top{rank+1}_layer"] = idx.item()
+                        metrics[f"layers/top{rank+1}_weight"] = val.item()
 
-                accum_loss = 0.0
-                accum_correct = 0
-                accum_total = 0
-                accum_case_correct = 0
-                accum_cases = 0
-                accum_vote_prob_sum = 0.0
-                accum_vote_prob_n = 0
-                accum_case_prob_sum = 0.0
-                accum_case_prob_n = 0
+                    wandb.log(metrics, step=global_step)
+                    pbar.set_postfix(
+                        loss=f"{accum_loss / max(log_micro_batches, 1):.4f}",
+                        gv=f"{accum_correct / max(accum_total, 1):.3f}",
+                        ev=f"{accum_vote_prob_sum / max(accum_vote_prob_n, 1):.3f}",
+                        gc=f"{accum_case_correct / max(accum_cases, 1):.3f}",
+                        ec=f"{accum_case_prob_sum / max(accum_case_prob_n, 1):.3f}",
+                    )
+
+                    accum_loss = 0.0
+                    accum_correct = 0
+                    accum_total = 0
+                    accum_case_correct = 0
+                    accum_cases = 0
+                    accum_vote_prob_sum = 0.0
+                    accum_vote_prob_n = 0
+                    accum_case_prob_sum = 0.0
+                    accum_case_prob_n = 0
+                    log_steps_accum = 0
+                    log_micro_batches = 0
+
                 micro_step = 0
 
         # End of epoch evaluation
@@ -659,7 +716,8 @@ def train():
                      global_step, epoch)
 
     # Save head weights
-    save_path = f"output/scotus-crossattn-{args.model}.pt"
+    run_name = args.run_name or f"scotus-crossattn-{args.model}"
+    save_path = f"output/{run_name}.pt"
     os.makedirs("output", exist_ok=True)
     torch.save({
         "head_state_dict": head.state_dict(),
@@ -667,10 +725,10 @@ def train():
         "config": {
             "num_llm_layers": num_llm_layers,
             "llm_dim": llm_dim,
-            "head_dim": HEAD_DIM,
-            "num_queries": NUM_QUERIES_PER_JUSTICE,
-            "self_attn_layers": SELF_ATTN_LAYERS,
-            "self_attn_ffn_dim": SELF_ATTN_FFN_DIM,
+            "head_dim": args.head_dim,
+            "num_queries": args.num_queries,
+            "self_attn_layers": args.self_attn_layers,
+            "self_attn_ffn_dim": args.ffn_dim,
             "max_justices": MAX_JUSTICES,
         },
     }, save_path)
