@@ -24,7 +24,7 @@ MODELS = {
 DEFAULT_MODEL = "7b"
 
 MAX_SEQ_LENGTH = 16384
-DATA_DIR = "case_transcripts_clean"
+DATA_DIR = "case_transcripts_cleaned"
 VOTES_DELIMITER = "\n---\nJUSTICE VOTES:\n"
 EVAL_YEAR = "2019"
 
