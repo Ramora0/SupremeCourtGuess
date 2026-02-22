@@ -290,6 +290,9 @@ def load_encoder(name: str, freeze_layers: int = 0):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     encoder = AutoModel.from_pretrained(model_path)
 
+    hidden_dim = encoder.config.hidden_size
+    max_length = getattr(encoder.config, "max_position_embeddings", 512)
+
     if freeze_layers > 0:
         freeze_encoder_layers(encoder, freeze_layers)
         n_frozen = sum(1 for p in encoder.parameters() if not p.requires_grad)
