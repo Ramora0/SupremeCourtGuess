@@ -1232,12 +1232,13 @@ def train():
     run_id = run_name + "_" + datetime.now().strftime("%Y%m%d_%H%M%S")
     save_results(config, epochs_stats, args.results_dir, run_id=run_id)
 
-    # Save model weights
+    # Save model weights (head + fine-tuned encoder)
     save_dir = "output"
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, f"{run_name}.pt")
     torch.save({
         "model_state_dict": model.state_dict(),
+        "encoder_state_dict": encoder.state_dict(),
         "registry": registry.name_to_id,
         "config": {
             "encoder": args.encoder,
