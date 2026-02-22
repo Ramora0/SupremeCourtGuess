@@ -513,10 +513,10 @@ def train():
         pbar = tqdm(train_samples, desc=f"Epoch {epoch+1}/{args.epochs}")
 
         for i, sample in enumerate(pbar):
-            # Get hidden states from frozen backbone
-            hidden_states = get_hidden_states(
+            # Get blended transcript representation (memory-efficient)
+            blended = get_blended_hidden_state(
                 backbone, tokenizer, sample["transcript"],
-                MAX_SEQ_LENGTH, device,
+                MAX_SEQ_LENGTH, device, head.layer_weighter,
             )
 
             # Prepare justice IDs and labels
@@ -531,10 +531,9 @@ def train():
             )
 
             # Forward through head
-            logits = head(hidden_states, justice_ids)  # (J, 2)
+            logits = head(blended, justice_ids)  # (J, 2)
 
-            # Free hidden states immediately
-            del hidden_states
+            del blended
 
             # Loss averaged over justices
             loss = F.cross_entropy(logits, labels) / GRAD_ACCUM_STEPS
@@ -640,9 +639,9 @@ def evaluate(
     print(f"\n── Evaluation ({len(eval_samples)} cases, epoch {epoch+1}) ──\n")
 
     for sample in tqdm(eval_samples, desc="Evaluating"):
-        hidden_states = get_hidden_states(
+        blended = get_blended_hidden_state(
             backbone, tokenizer, sample["transcript"],
-            MAX_SEQ_LENGTH, device,
+            MAX_SEQ_LENGTH, device, head.layer_weighter,
         )
 
         justice_names = list(sample["votes"].keys())
@@ -655,10 +654,10 @@ def evaluate(
             device=device, dtype=torch.long,
         )
 
-        logits = head(hidden_states, justice_ids)
+        logits = head(blended, justice_ids)
         preds = logits.argmax(dim=1)
 
-        del hidden_states
+        del blended
 
         # Per-justice accuracy
         for j, name in enumerate(justice_names):
