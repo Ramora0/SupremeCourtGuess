@@ -766,7 +766,7 @@ def parse_args():
     )
 
     # Training
-    p.add_argument("--epochs", type=int, default=5)
+    p.add_argument("--epochs", type=int, default=3)
     p.add_argument("--batch-size", type=int, default=1,
                     help="Samples per encoder batch (default: 1)")
     p.add_argument("--lr", type=float, default=2e-5, help="Encoder learning rate")
